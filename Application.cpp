@@ -27,12 +27,32 @@ const std::vector<const char*> validationLayers = {
 };
 
 
+// Callback that will be invoked on errors in validation layers
+static VKAPI_ATTR VkBool32 VKAPI_CALL ValidationErrorCallback(
+    VkDebugReportFlagsEXT flags,
+    VkDebugReportObjectTypeEXT objType,
+    uint64_t obj,
+    size_t location,
+    int32_t code,
+    const char* layerPrefix,
+    const char* msg,
+    void* userData) 
+{
+    std::cerr << "Validation error:  " << msg << std::endl;
+    return VK_FALSE;
+}
+
+
 // Run the application - initialize, run the main loop, cleanup at the end.
 void Application::Run() {
-	InitWindow();
+    // initialize the application window
+    InitWindow();
+    // initialize the Vulkan API
 	InitVulkan();
-	MainLoop();
-	Cleanup();
+    // program's main loop
+    MainLoop();
+    // clean up Vulkan API and destroy the application window
+    Cleanup();
 }
 
 
@@ -55,6 +75,8 @@ void Application::InitWindow() {
 void Application::InitVulkan() {
 	// create the vulkan instance
 	CreateInstance();
+    // set the validatio debug callback
+    SetupValidationErrorCallback();
 }
 
 
@@ -69,7 +91,10 @@ void Application::MainLoop() {
 
 // Clean up Vulkan API and destroy the application window
 void Application::Cleanup() {
-	// destroy the vulkan instance
+    // remove the validation callback
+    DestroyValidationErrorCallback();
+    
+    // destroy the vulkan instance
 	vkDestroyInstance(instance, nullptr);
 
 	// clOSe the window
@@ -82,13 +107,11 @@ void Application::Cleanup() {
 
 // Create the Vulkan instance
 void Application::CreateInstance() {
-	// get the info on vulkan extension glfw needs to interface with the window system
-	unsigned int glfwExtensionCount = 0;
-	const char **glfwExtensions;
-	glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
 	// before trying to create the instance, check if all required extensions are supported
-	CheckExtensionSupport(glfwExtensionCount, glfwExtensions);
+    std::vector<const char*> requiredExtensions;
+    GetRequiredExtensions(requiredExtensions);
+	CheckExtensionSupport(requiredExtensions);
 
 	// if validation layers are enabled, set them up
 	SetupValidationLayers();
@@ -117,8 +140,8 @@ void Application::CreateInstance() {
 	// pointer to the appInfo
 	createInfo.pApplicationInfo = &appInfo;
 	// set the exteosion info
-	createInfo.enabledExtensionCount = glfwExtensionCount;
-	createInfo.ppEnabledExtensionNames = glfwExtensions;
+	createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+	createInfo.ppEnabledExtensionNames = requiredExtensions.data();
 
 	// if validation layers are enabled
 	if (enableValidationLayers) {
@@ -141,8 +164,27 @@ void Application::CreateInstance() {
 }
 
 
+// Get the ulkan extensions required for the applciation to work.
+void Application::GetRequiredExtensions(std::vector<const char*> &requiredExtensions) {
+    requiredExtensions.clear();
+
+    // get the info on vulkan extension glfw needs to interface with the window system
+    unsigned int glfwExtensionCount = 0;
+    const char **glfwExtensions;
+    glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+
+    for (unsigned int extensionIndex = 0; extensionIndex < glfwExtensionCount; ++extensionIndex) {
+        requiredExtensions.push_back(glfwExtensions[extensionIndex]);
+    }
+
+    if (enableValidationLayers) {
+        requiredExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+    }
+}
+
+
 // Check if all required extensions are supported
-void Application::CheckExtensionSupport(unsigned int glfwExtensionCount, const char **glfwExtensions) {
+void Application::CheckExtensionSupport(const std::vector<const char*> &requiredExtensions) {
 	// get the number of supported extensions
 	uint32_t extensionCount = 0;
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
@@ -153,8 +195,7 @@ void Application::CheckExtensionSupport(unsigned int glfwExtensionCount, const c
 	vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
 
 	// go through all required extensions
-	for (unsigned int extensionIndex = 0; extensionIndex < glfwExtensionCount; ++extensionIndex) {
-		const char *extensionName = glfwExtensions[extensionIndex];
+	for (const char *extensionName: requiredExtensions) {
 		bool bFound = false;
 		// search for the extension in the list of supported extensions
 		for (const auto &extensionProperties : extensions) {
@@ -206,4 +247,43 @@ bool Application::CheckValidationLayerSupport() {
 		}
 	}
 	return true;
+}
+
+// Set up the validation error callback
+void Application::SetupValidationErrorCallback() {
+    // if validation layers are not enable, don't try to set up the callback
+    if (!enableValidationLayers) {
+        return;
+    }
+    // prepare the struct to create the callback
+    VkDebugReportCallbackCreateInfoEXT callbackInfo = {};
+    // set the type of the struct
+    callbackInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+    // enable the callback for errors and warnings
+    callbackInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
+    // set the function pointer
+    callbackInfo.pfnCallback = ValidationErrorCallback;
+
+    // the function that creates the actual callback has to be obtained through vkGetInstanceProcAddr
+    auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugReportCallbackEXT");
+    // create the callback, and throw an exception if creation fails
+    if (vkCreateDebugReportCallbackEXT == nullptr || vkCreateDebugReportCallbackEXT(instance, &callbackInfo, nullptr, &validationCallback) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to set up the validation layer debug callback");
+    }
+}
+
+
+// Destroy the validation callbacks (on application end)
+void Application::DestroyValidationErrorCallback() {
+    // if validation layers are not enable, don't try to set up the callback
+    if (!enableValidationLayers) {
+        return;
+    }
+    // get the pointer to the destroy function
+    auto vkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
+    // if failed getting the function, throw an exception
+    if (vkDestroyDebugReportCallbackEXT == nullptr) {
+        throw std::runtime_error("Failed to destroy the validation callback");
+    }
+    vkDestroyDebugReportCallbackEXT(instance, validationCallback, nullptr);
 }
