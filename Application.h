@@ -32,6 +32,7 @@ private:
     // Check if all required extensions are supported
 	void CheckExtensionSupport(const std::vector<const char*> &requiredExtensions);
 
+    // NOTE: In the Vulkan SDK, Config directory, there is a vk_layer_settings.txt file that explains how to configure the validation layers.
 	// Set up the validation layers.
 	void SetupValidationLayers();
 	// Check if all requested valdiation layers are supported.
