@@ -39,6 +39,9 @@
     <ClCompile Include="GfxAPINull\GfxAPINull.cpp">
       <Filter>Source Files\GfxAPINull</Filter>
     </ClCompile>
+    <ClCompile Include="Options.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -54,6 +57,9 @@
       <Filter>Source Files\GfxAPIVulkan</Filter>
     </ClInclude>
     <ClInclude Include="PrecompiledHeader.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Options.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
