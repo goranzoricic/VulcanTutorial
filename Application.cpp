@@ -10,16 +10,7 @@
 #include <stdexcept>
 #include <functional>
 
-// enable validation layers only in debug builds
-#ifdef NDEBUG
-const bool enableValidationLayers = false;
-#else
-const bool enableValidationLayers = true;
-#endif
-
-// dimensions of the application window
-const int WIDTH = 1920;
-const int HEIGHT = 1080;
+#include "Options.h"
 
 // list of validation layers' names that we want to enable
 const std::vector<const char*> validationLayers = {
@@ -68,7 +59,8 @@ void Application::InitWindow() {
 	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
 	// create the window
-	window = glfwCreateWindow(WIDTH, HEIGHT, "Vulkan", nullptr, nullptr);
+    const Options &options = Options::Get();
+	window = glfwCreateWindow(options.GetWindowWidth(), options.GetWindowHeight(), "Vulkan", nullptr, nullptr);
 }
 
 
@@ -147,7 +139,7 @@ void Application::CreateInstance() {
 	createInfo.ppEnabledExtensionNames = requiredExtensions.data();
 
 	// if validation layers are enabled
-	if (enableValidationLayers) {
+	if (Options::Get().ShouldUseValidationLayers()) {
 		// set the number and list of names of layers to enable
 		createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
 		createInfo.ppEnabledLayerNames = validationLayers.data();
@@ -180,7 +172,7 @@ void Application::GetRequiredExtensions(std::vector<const char*> &requiredExtens
         requiredExtensions.push_back(glfwExtensions[extensionIndex]);
     }
 
-    if (enableValidationLayers) {
+    if (Options::Get().ShouldUseValidationLayers()) {
         requiredExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
     }
 }
@@ -218,8 +210,8 @@ void Application::CheckExtensionSupport(const std::vector<const char*> &required
 
 // Set up the validation layers.
 void Application::SetupValidationLayers() {
-	if (enableValidationLayers && !CheckValidationLayerSupport()) {
-		throw std::runtime_error("Validation layers enabled but not available!");
+    if (Options::Get().ShouldUseValidationLayers() && !CheckValidationLayerSupport()) {
+        throw std::runtime_error("Validation layers enabled but not available!");
 	}
 }
 
@@ -255,7 +247,7 @@ bool Application::CheckValidationLayerSupport() {
 // Set up the validation error callback
 void Application::SetupValidationErrorCallback() {
     // if validation layers are not enable, don't try to set up the callback
-    if (!enableValidationLayers) {
+    if (Options::Get().ShouldUseValidationLayers()) {
         return;
     }
     // prepare the struct to create the callback
@@ -279,7 +271,7 @@ void Application::SetupValidationErrorCallback() {
 // Destroy the validation callbacks (on application end)
 void Application::DestroyValidationErrorCallback() {
     // if validation layers are not enable, don't try to set up the callback
-    if (!enableValidationLayers) {
+    if (Options::Get().ShouldUseValidationLayers()) {
         return;
     }
     // get the pointer to the destroy function
