@@ -75,8 +75,10 @@ void Application::InitWindow() {
 void Application::InitVulkan() {
 	// create the vulkan instance
 	CreateInstance();
-    // set the validatio debug callback
+    // set the validation debug callback
     SetupValidationErrorCallback();
+    // select the graphics card to use
+    SelectPhysicalDevice();
 }
 
 
@@ -286,4 +288,53 @@ void Application::DestroyValidationErrorCallback() {
         throw std::runtime_error("Failed to destroy the validation callback");
     }
     vkDestroyDebugReportCallbackEXT(instance, validationCallback, nullptr);
+}
+
+
+// Select the physical device (graphics card) to render on
+void Application::SelectPhysicalDevice() {
+    // enumerate the available physical devices
+    uint32_t deviceCount = 0;
+    vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
+
+    // if there are no physical devices, we can't render, so throw
+    if (deviceCount == 0) {
+        throw std::runtime_error("No available physical devices");
+    }
+
+    // get info for all physical devices
+    std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
+    vkEnumeratePhysicalDevices(instance, &deviceCount, physicalDevices.data());
+
+    // find the first physical device that fits the needs
+    for (const VkPhysicalDevice &device : physicalDevices) {
+        if (IsDeviceSuitable(device)) {
+            physicalDevice = device;
+            break;
+        }
+    }
+
+    // if no suitable physical device was found, throw
+    if (physicalDevice == VK_NULL_HANDLE) {
+        throw std::runtime_error("No suitable physical device found");
+    }
+}
+
+
+// Does the device support all required features?
+bool Application::IsDeviceSuitable(const VkPhysicalDevice &device) const {
+    // get the data for properties of this device
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(device, &deviceProperties);
+    // get the data about supported features
+    VkPhysicalDeviceFeatures deviceFeatures;
+    vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+    // NOTE: This is only an example of device property and feature selection, the real implementation would be more elaborate
+    // and would probably select the best device available
+    // the application requires a discrete GPU and geometry shader support
+    if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader) {
+        return true;
+    }
+    return false;
 }

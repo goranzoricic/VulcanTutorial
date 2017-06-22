@@ -5,16 +5,20 @@
 
 class Application {
 public:
+    Application() : physicalDevice(VK_NULL_HANDLE) {}
+
     // Run the application - initialize, run the main loop, cleanup at the end.
 	void Run();
 
 private:
-	// application window
+	// Application window
 	struct GLFWwindow * window;
-	// handle to the vulkan instance
+	// Handle to the vulkan instance
 	VkInstance instance;
     // Handle to the debug callback
     VkDebugReportCallbackEXT validationCallback;
+    // Physical device (graphics card) used
+    VkPhysicalDevice physicalDevice;
 
 	// Initialize the application window
 	void InitWindow();
@@ -42,4 +46,8 @@ private:
     // Destroy the validation callbacks (on application end)
     void DestroyValidationErrorCallback();
 
+    // Select the physical device (graphics card) to render on
+    void SelectPhysicalDevice();
+    // Does the device support all required features?
+    bool IsDeviceSuitable(const VkPhysicalDevice &device) const;
 };
