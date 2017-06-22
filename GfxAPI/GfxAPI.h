@@ -24,6 +24,12 @@ public:
     virtual bool Initialize(uint32_t dimWidth, uint32_t dimHeight) = 0;
     // Destroy the API. Returns true if successfull.
     virtual bool Destroy() = 0;
+    // Get the main application window.
+    struct GLFWwindow *GetWindow() { return _wndWindow;  }
+    // Should the window be closed?
+    bool ShouldCloseWindow();
+    // Process window messages.
+    void ProcessWindowMessages();
 
 protected:
     // Constructor and destructor are only available to derived classes.
@@ -34,6 +40,10 @@ public:
     // Forbid the copy constructor and assignment to prevent multiple copies.
     GfxAPI(GfxAPI const &) = delete;
     void operator = (GfxAPI const &) = delete;
+
+protected:
+    // Application window
+    struct GLFWwindow *_wndWindow;
 
 private:
     // The currently active graphics API implementation. There can be only one.
