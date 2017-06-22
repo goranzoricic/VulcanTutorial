@@ -1,3 +1,4 @@
+#include "PrecompiledHeader.h"
 #include "Application.h"
 
 #include <vector>
@@ -6,6 +7,7 @@
 
 #include "Options.h"
 #include "GfxAPI/GfxAPI.h"
+#include "GfxAPI/Window.h"
 
 
 // Run the application - initialize, run the main loop, cleanup at the end.
@@ -41,8 +43,9 @@ void Application::InitializeGraphics() {
 // Program's main loop
 void Application::MainLoop() {
 	// loop until the user closes the window
-	while (!GfxAPI::Get()->ShouldCloseWindow()) {
-        GfxAPI::Get()->ProcessWindowMessages();
+    std::shared_ptr<Window> wndWindow = GfxAPI::Get()->GetWindow();
+	while (!wndWindow->ShouldClose()) {
+        wndWindow->ProcessMessages();
 	}
 }
 

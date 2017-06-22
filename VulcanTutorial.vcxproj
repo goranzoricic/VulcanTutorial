@@ -158,6 +158,7 @@
     <ClCompile Include="GfxAPINull\GfxAPINull.cpp" />
     <ClCompile Include="GfxAPIVulkan\GfxAPIVulkan.cpp" />
     <ClCompile Include="GfxAPI\GfxAPI.cpp" />
+    <ClCompile Include="GfxAPI\Window.cpp" />
     <ClCompile Include="Options.cpp" />
     <ClCompile Include="VulcanTest.cpp" />
   </ItemGroup>
@@ -166,6 +167,7 @@
     <ClInclude Include="GfxAPINull\GfxAPINull.h" />
     <ClInclude Include="GfxAPIVulkan\GfxAPIVulkan.h" />
     <ClInclude Include="GfxAPI\GfxAPI.h" />
+    <ClInclude Include="GfxAPI\Window.h" />
     <ClInclude Include="Options.h" />
     <ClInclude Include="PrecompiledHeader.h" />
   </ItemGroup>

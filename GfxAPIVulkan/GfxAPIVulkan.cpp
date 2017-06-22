@@ -5,6 +5,7 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.h>
 #include "../Options.h"
+#include "../GfxAPI/Window.h"
 
 
 // list of validation layers' names that we want to enable
@@ -50,8 +51,8 @@ bool GfxAPIVulkan::Destroy() {
     DestroyValidationErrorCallback();
     // destroy the vulkan instance
     vkDestroyInstance(vkiInstance, nullptr);
-    // clOSe the window
-    glfwDestroyWindow(_wndWindow);
+    // close the window
+    _wndWindow->Close();
     // shut down GLFW
     glfwTerminate();
 
@@ -69,8 +70,10 @@ void GfxAPIVulkan::CreateWindow(uint32_t dimWidth, uint32_t dimHeight) {
     // window is not resizable, to avoid dealing with that
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    // create the window
-    _wndWindow = glfwCreateWindow(dimWidth, dimHeight, "Vulkan", nullptr, nullptr);
+    // create the window object, GLFW representation of the system window and link the two up
+    _wndWindow = std::make_shared<Window>();
+    GLFWwindow *wndWindow = glfwCreateWindow(dimWidth, dimHeight, "Vulkan", nullptr, nullptr);
+    _wndWindow->Initialize(dimWidth, dimHeight, wndWindow);
 
     // create the vulkan instance
     CreateInstance();
@@ -79,6 +82,7 @@ void GfxAPIVulkan::CreateWindow(uint32_t dimWidth, uint32_t dimHeight) {
     // select the graphics card to use
     SelectPhysicalDevice();
 }
+
 
 // Create the Vulkan instance
 void GfxAPIVulkan::CreateInstance() {
@@ -223,6 +227,7 @@ bool GfxAPIVulkan::CheckValidationLayerSupport() {
     }
     return true;
 }
+
 
 // Set up the validation error callback
 void GfxAPIVulkan::SetupValidationErrorCallback() {

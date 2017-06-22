@@ -1,7 +1,8 @@
 #include "../PrecompiledHeader.h"
+
 #include "GfxAPI.h"
-#include <cassert>
 #include <GLFW/glfw3.h>
+
 #include "../GfxAPIVulkan/GfxAPIVulkan.h"
 #include "../GfxAPINull/GfxAPINull.h"
 
@@ -28,20 +29,4 @@ GfxAPI *GfxAPI::CreateNull() {
     assert(_apiInstance == nullptr);
     _apiInstance = new GfxAPINull();
     return _apiInstance;
-}
-
-
-// NOTE: This doesn't really belong here, the window should be in its own class.
-
-// Should the window be closed?
-bool GfxAPI::ShouldCloseWindow() {
-    if (glfwWindowShouldClose(_wndWindow)) {
-        return true;
-    }
-    return false;
-}
-
-// Process window messages.
-void GfxAPI::ProcessWindowMessages() {
-    glfwPollEvents();
 }

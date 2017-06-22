@@ -6,6 +6,8 @@ enum GfxAPIType {
     GFX_API_TYPE_VULKAN = 1,
 };
 
+class Window;
+
 // This is a base class for graphics APIs. It defines the interface that an API needs to provide
 // for the application and the render. The class is abstract, all required methods need to be implemented
 // by concrete classes.
@@ -25,11 +27,7 @@ public:
     // Destroy the API. Returns true if successfull.
     virtual bool Destroy() = 0;
     // Get the main application window.
-    struct GLFWwindow *GetWindow() { return _wndWindow;  }
-    // Should the window be closed?
-    bool ShouldCloseWindow();
-    // Process window messages.
-    void ProcessWindowMessages();
+    std::shared_ptr<Window> &GetWindow() { return _wndWindow;  }
 
 protected:
     // Constructor and destructor are only available to derived classes.
@@ -43,10 +41,11 @@ public:
 
 protected:
     // Application window
-    struct GLFWwindow *_wndWindow;
+    std::shared_ptr<Window> _wndWindow;
 
 private:
     // The currently active graphics API implementation. There can be only one.
     static GfxAPI *_apiInstance;
+
 };
 

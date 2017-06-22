@@ -42,6 +42,9 @@
     <ClCompile Include="Options.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="GfxAPI\Window.cpp">
+      <Filter>Source Files\GfxAPI</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
@@ -61,6 +64,9 @@
     </ClInclude>
     <ClInclude Include="Options.h">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GfxAPI\Window.h">
+      <Filter>Source Files\GfxAPI</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
