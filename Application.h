@@ -14,6 +14,8 @@ private:
     // Grapics API to use in the application.
     class GfxAPI *apiGfxAPI;
 
+    // Start the graphics API and create the window.
+    void InitializeGraphics();
 	// Program's main loop
 	void MainLoop();
 	// Clean up Vulkan API and destroy the application window
