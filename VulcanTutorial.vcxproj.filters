@@ -13,6 +13,15 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="Source Files\GfxAPI">
+      <UniqueIdentifier>{1917f031-9998-40ba-9bf8-35accae7dab5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\GfxAPIVulkan">
+      <UniqueIdentifier>{ab51d8d1-ffbb-4ebc-9663-2c537950ebef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\GfxAPINull">
+      <UniqueIdentifier>{0fc48dd5-fb4f-4138-987a-a89581f431e7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VulcanTest.cpp">
@@ -21,9 +30,30 @@
     <ClCompile Include="Application.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="GfxAPI\GfxAPI.cpp">
+      <Filter>Source Files\GfxAPI</Filter>
+    </ClCompile>
+    <ClCompile Include="GfxAPIVulkan\GfxAPIVulkan.cpp">
+      <Filter>Source Files\GfxAPIVulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="GfxAPINull\GfxAPINull.cpp">
+      <Filter>Source Files\GfxAPINull</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Application.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GfxAPI\GfxAPI.h">
+      <Filter>Source Files\GfxAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="GfxAPINull\GfxAPINull.h">
+      <Filter>Source Files\GfxAPINull</Filter>
+    </ClInclude>
+    <ClInclude Include="GfxAPIVulkan\GfxAPIVulkan.h">
+      <Filter>Source Files\GfxAPIVulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="PrecompiledHeader.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,3 +1,4 @@
+#include "PrecompiledHeader.h"
 #include "Application.h"
 
 #define GLFW_INCLUDE_VULKAN
