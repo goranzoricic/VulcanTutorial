@@ -396,4 +396,7 @@ void GfxAPIVulkan::CreateLogicalDevice() {
     if (!vkCreateDevice(vkdevPhysicalDevice, &ciLogicalDeviceCreateInfo, nullptr, &vkdevLogicalDevice)) {
         throw std::runtime_error("Failed to create the logicla device");
     }
+
+    // retreive the handle to the graphics queue
+    vkGetDeviceQueue(vkdevLogicalDevice, iGraphicsQueueFamily, 0, &qGraphicsQueue);
 }

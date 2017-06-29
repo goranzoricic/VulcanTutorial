@@ -5,7 +5,11 @@
 // Implementation of Vulkan graphics API.
 class GfxAPIVulkan : public GfxAPI {
 private:
-    GfxAPIVulkan() : vkdevPhysicalDevice(VK_NULL_HANDLE), vkdevLogicalDevice(VK_NULL_HANDLE), iGraphicsQueueFamily(-1) {};
+    GfxAPIVulkan() :vkdevPhysicalDevice(VK_NULL_HANDLE), 
+                    vkdevLogicalDevice(VK_NULL_HANDLE), 
+                    qGraphicsQueue(VK_NULL_HANDLE), 
+                    iGraphicsQueueFamily(-1) 
+    {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
 
@@ -60,5 +64,7 @@ private:
 
     // Index of a queue family that supports graphics commands.
     int iGraphicsQueueFamily;
+    // Handle to the queue to submit graphics commands to.
+    VkQueue qGraphicsQueue;
 };
 
