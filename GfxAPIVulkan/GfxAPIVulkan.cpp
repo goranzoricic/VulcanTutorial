@@ -347,8 +347,18 @@ void GfxAPIVulkan::FindQueueFamilies() {
     // find the queue families that support required features
     for (uint32_t iQueueFamily = 0; iQueueFamily < ctQueueFamilies; iQueueFamily++) {
         const auto &qfQueueFamily = aQueueFamilies[iQueueFamily];
+        // if this is the first queue family that supports graphics commands, store its index
         if (iGraphicsQueueFamily < 0 && qfQueueFamily.queueCount > 0 && (qfQueueFamily.queueFlags | VK_QUEUE_GRAPHICS_BIT)) {
             iGraphicsQueueFamily = iQueueFamily;
+        }
+
+        // if this is the first queue family that supports presentation, store its index
+        if (iPresentationQueueFamily < 0 && qfQueueFamily.queueCount > 0) {
+            VkBool32 bPresentationSupport = false;
+            vkGetPhysicalDeviceSurfaceSupportKHR(vkdevPhysicalDevice, iQueueFamily, sfcSurface, &bPresentationSupport);
+            if (bPresentationSupport) {
+                iPresentationQueueFamily = iQueueFamily;
+            }
         }
     }   
 }
@@ -365,22 +375,30 @@ bool GfxAPIVulkan::IsQueueFamiliesSuitable() const {
 
 // Create the logical device the application will use.
 void GfxAPIVulkan::CreateLogicalDevice() {
+
     // description of queues that should be created
-    VkDeviceQueueCreateInfo ciQueueCreateInfo = {};
-    ciQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    // create just the graphics command queue
-    ciQueueCreateInfo.queueCount = 1;
-    ciQueueCreateInfo.queueFamilyIndex = iGraphicsQueueFamily;
-    // set the queue priority
+    std::vector<VkDeviceQueueCreateInfo> aciQueueCreateInfos;
+    std::set<int> setQueueFamilies = { iGraphicsQueueFamily, iPresentationQueueFamily };
+
     float queuePriority = 1.0f;
-    ciQueueCreateInfo.pQueuePriorities = &queuePriority;
+    for (int iQueueFamily : setQueueFamilies) {
+        VkDeviceQueueCreateInfo ciQueueCreateInfo = {};
+        ciQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        // create just the graphics command queue
+        ciQueueCreateInfo.queueCount = 1;
+        ciQueueCreateInfo.queueFamilyIndex = iQueueFamily;
+        // set the queue priority
+        ciQueueCreateInfo.pQueuePriorities = &queuePriority;
+        // store the queue info into the array
+        aciQueueCreateInfos.push_back(ciQueueCreateInfo);
+    }
 
     // descroption of the logical device to create
     VkDeviceCreateInfo ciLogicalDeviceCreateInfo = {};
     ciLogicalDeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     // set the queue create info
-    ciLogicalDeviceCreateInfo.pQueueCreateInfos = &ciQueueCreateInfo;
-    ciLogicalDeviceCreateInfo.queueCreateInfoCount = 1;
+    ciLogicalDeviceCreateInfo.pQueueCreateInfos = aciQueueCreateInfos.data();
+    ciLogicalDeviceCreateInfo.queueCreateInfoCount = static_cast<uint32_t>(setQueueFamilies.size());
 
     // list the needed device features
     // NOTE: not specifying any for now, will revisit later

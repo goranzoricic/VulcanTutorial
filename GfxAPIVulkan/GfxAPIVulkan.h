@@ -7,8 +7,10 @@ class GfxAPIVulkan : public GfxAPI {
 private:
     GfxAPIVulkan() :vkdevPhysicalDevice(VK_NULL_HANDLE), 
                     vkdevLogicalDevice(VK_NULL_HANDLE), 
-                    qGraphicsQueue(VK_NULL_HANDLE), 
-                    iGraphicsQueueFamily(-1) 
+                    iGraphicsQueueFamily(-1),
+                    qGraphicsQueue(VK_NULL_HANDLE),
+                    iPresentationQueueFamily(-1),
+                    qPresentationQueue(VK_NULL_HANDLE)
     {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
@@ -72,5 +74,10 @@ private:
     int iGraphicsQueueFamily;
     // Handle to the queue to submit graphics commands to.
     VkQueue qGraphicsQueue;
+
+    // Index of a graphics family with presentation support.
+    int iPresentationQueueFamily;
+    // Handle to the queue to use for presentation.
+    VkQueue qPresentationQueue;
 };
 
