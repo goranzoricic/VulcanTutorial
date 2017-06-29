@@ -33,13 +33,20 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL ValidationErrorCallback(
 
 // Initialize the API. Returns true if successfull.
 bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
+    // create a window with the required dimensions
     CreateWindow(dimWidth, dimHeight);
     // create the vulkan instance
     CreateInstance();
     // set the validation debug callback
     SetupValidationErrorCallback();
+    // create the window surface
+    CreateSurface();
     // select the graphics card to use
     SelectPhysicalDevice();
+    // find indices of queue families needed to support all application's features.
+    FindQueueFamilies();
+    // create the logical device
+    CreateLogicalDevice();
 
     return true;
 }
@@ -51,6 +58,8 @@ bool GfxAPIVulkan::Destroy() {
     vkDestroyDevice(vkdevLogicalDevice, nullptr);
     // remove the validation callback
     DestroyValidationErrorCallback();
+    // destroy the window surface
+    vkDestroySurfaceKHR(vkiInstance, sfcSurface, nullptr);
     // destroy the vulkan instance
     vkDestroyInstance(vkiInstance, nullptr);
     // close the window
@@ -76,13 +85,6 @@ void GfxAPIVulkan::CreateWindow(uint32_t dimWidth, uint32_t dimHeight) {
     _wndWindow = std::make_shared<Window>();
     GLFWwindow *wndWindow = glfwCreateWindow(dimWidth, dimHeight, "Vulkan", nullptr, nullptr);
     _wndWindow->Initialize(dimWidth, dimHeight, wndWindow);
-
-    // create the vulkan instance
-    CreateInstance();
-    // set the validation debug callback
-    SetupValidationErrorCallback();
-    // select the graphics card to use
-    SelectPhysicalDevice();
 }
 
 
@@ -271,6 +273,13 @@ void GfxAPIVulkan::DestroyValidationErrorCallback() {
 }
 
 
+// Create the surface to present render buffers to.
+void GfxAPIVulkan::CreateSurface() {
+    if (glfwCreateWindowSurface(vkiInstance, _wndWindow->GetHandle(), nullptr, &sfcSurface) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the window surface");
+    }
+}
+
 // Select the physical device (graphics card) to render on
 void GfxAPIVulkan::SelectPhysicalDevice() {
     // enumerate the available physical devices
@@ -393,8 +402,8 @@ void GfxAPIVulkan::CreateLogicalDevice() {
     }
 
     // create the logical device
-    if (!vkCreateDevice(vkdevPhysicalDevice, &ciLogicalDeviceCreateInfo, nullptr, &vkdevLogicalDevice)) {
-        throw std::runtime_error("Failed to create the logicla device");
+    if (vkCreateDevice(vkdevPhysicalDevice, &ciLogicalDeviceCreateInfo, nullptr, &vkdevLogicalDevice) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the logical device");
     }
 
     // retreive the handle to the graphics queue

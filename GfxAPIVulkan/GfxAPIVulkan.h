@@ -39,6 +39,9 @@ private:
     // Destroy the validation callbacks (on application end).
     void DestroyValidationErrorCallback();
 
+    // Create the surface to present render buffers to.
+    void CreateSurface();
+
     // Select the physical device (graphics card) to render on.
     void SelectPhysicalDevice();
     // Does the device support all required features?
@@ -55,6 +58,9 @@ private:
 private:
     // Handle to the vulkan instance.
     VkInstance vkiInstance;
+    // Handle to the window surface that the render buffers will be presented to.
+    VkSurfaceKHR sfcSurface;
+
     // Handle to the debug callback.
     VkDebugReportCallbackEXT clbkValidation;
     // Physical device (graphics card) used.

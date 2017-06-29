@@ -19,6 +19,9 @@ public:
     // Close the window.
     void Close();
 
+    // Get the handle to the underlying representation.
+    struct GLFWwindow *GetHandle() { return _wndWindow;  }
+
 private:
     // Window width and height.
     uint32_t _dimWidth;
