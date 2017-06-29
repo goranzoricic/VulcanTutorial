@@ -47,6 +47,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // destroy the logical devics
+    vkDestroyDevice(vkdevLogicalDevice, nullptr);
     // remove the validation callback
     DestroyValidationErrorCallback();
     // destroy the vulkan instance
@@ -272,20 +274,20 @@ void GfxAPIVulkan::DestroyValidationErrorCallback() {
 // Select the physical device (graphics card) to render on
 void GfxAPIVulkan::SelectPhysicalDevice() {
     // enumerate the available physical devices
-    uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(vkiInstance, &deviceCount, nullptr);
+    uint32_t ctDevices = 0;
+    vkEnumeratePhysicalDevices(vkiInstance, &ctDevices, nullptr);
 
     // if there are no physical devices, we can't render, so throw
-    if (deviceCount == 0) {
+    if (ctDevices == 0) {
         throw std::runtime_error("No available physical devices");
     }
 
     // get info for all physical devices
-    std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
-    vkEnumeratePhysicalDevices(vkiInstance, &deviceCount, physicalDevices.data());
+    std::vector<VkPhysicalDevice> aPhysicalDevices(ctDevices);
+    vkEnumeratePhysicalDevices(vkiInstance, &ctDevices, aPhysicalDevices.data());
 
     // find the first physical device that fits the needs
-    for (const VkPhysicalDevice &device : physicalDevices) {
+    for (const VkPhysicalDevice &device : aPhysicalDevices) {
         if (IsDeviceSuitable(device)) {
             vkdevPhysicalDevice = device;
             break;
@@ -314,5 +316,84 @@ bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) const {
     if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader) {
         return true;
     }
+
+    // if the queue families don't support all reqired features, the app can't work
+    if (!IsQueueFamiliesSuitable()) {
+        return false;
+    }
+
     return false;
+}
+
+
+// Find indices of queue families needed to support all application's features.
+void GfxAPIVulkan::FindQueueFamilies() {
+    // enumerate the available queue families
+    uint32_t ctQueueFamilies = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(vkdevPhysicalDevice, &ctQueueFamilies, nullptr);
+
+    std::vector<VkQueueFamilyProperties> aQueueFamilies(ctQueueFamilies);
+    vkGetPhysicalDeviceQueueFamilyProperties(vkdevPhysicalDevice, &ctQueueFamilies, aQueueFamilies.data());
+
+    // find the queue families that support required features
+    for (uint32_t iQueueFamily = 0; iQueueFamily < ctQueueFamilies; iQueueFamily++) {
+        const auto &qfQueueFamily = aQueueFamilies[iQueueFamily];
+        if (iGraphicsQueueFamily < 0 && qfQueueFamily.queueCount > 0 && (qfQueueFamily.queueFlags | VK_QUEUE_GRAPHICS_BIT)) {
+            iGraphicsQueueFamily = iQueueFamily;
+        }
+    }   
+}
+
+
+// Do the queue families support all required features?
+bool GfxAPIVulkan::IsQueueFamiliesSuitable() const {
+    if (iGraphicsQueueFamily < 0) {
+        return false;
+    }
+    return true;
+}
+
+
+// Create the logical device the application will use.
+void GfxAPIVulkan::CreateLogicalDevice() {
+    // description of queues that should be created
+    VkDeviceQueueCreateInfo ciQueueCreateInfo = {};
+    ciQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    // create just the graphics command queue
+    ciQueueCreateInfo.queueCount = 1;
+    ciQueueCreateInfo.queueFamilyIndex = iGraphicsQueueFamily;
+    // set the queue priority
+    float queuePriority = 1.0f;
+    ciQueueCreateInfo.pQueuePriorities = &queuePriority;
+
+    // descroption of the logical device to create
+    VkDeviceCreateInfo ciLogicalDeviceCreateInfo = {};
+    ciLogicalDeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    // set the queue create info
+    ciLogicalDeviceCreateInfo.pQueueCreateInfos = &ciQueueCreateInfo;
+    ciLogicalDeviceCreateInfo.queueCreateInfoCount = 1;
+
+    // list the needed device features
+    // NOTE: not specifying any for now, will revisit later
+    VkPhysicalDeviceFeatures deviceFeatures = {};
+    ciLogicalDeviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+
+    // no enabled extensions yet
+    // NOTE: these are device specific extension, will come back to them when doing swap_chain setup
+    ciLogicalDeviceCreateInfo.enabledExtensionCount = 0;    
+
+    // if validation layers are enabled
+    if (Options::Get().ShouldUseValidationLayers()) {
+        // set the number and list of names of layers to enable
+        ciLogicalDeviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        ciLogicalDeviceCreateInfo.ppEnabledLayerNames = validationLayers.data();
+    // else, no layers enabled
+    } else {
+        ciLogicalDeviceCreateInfo.enabledLayerCount = 0;
+    }
+
+    // create the logical device
+    if (!vkCreateDevice(vkdevPhysicalDevice, &ciLogicalDeviceCreateInfo, nullptr, &vkdevLogicalDevice)) {
+        throw std::runtime_error("Failed to create the logicla device");
+    }
 }
