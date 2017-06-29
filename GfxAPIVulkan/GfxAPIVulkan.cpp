@@ -47,6 +47,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // destroy the logical devics
+    vkDestroyDevice(vkdevLogicalDevice, nullptr);
     // remove the validation callback
     DestroyValidationErrorCallback();
     // destroy the vulkan instance
@@ -334,7 +336,7 @@ void GfxAPIVulkan::FindQueueFamilies() {
     vkGetPhysicalDeviceQueueFamilyProperties(vkdevPhysicalDevice, &ctQueueFamilies, aQueueFamilies.data());
 
     // find the queue families that support required features
-    for (int iQueueFamily = 0; iQueueFamily < ctQueueFamilies; iQueueFamily++) {
+    for (uint32_t iQueueFamily = 0; iQueueFamily < ctQueueFamilies; iQueueFamily++) {
         const auto &qfQueueFamily = aQueueFamilies[iQueueFamily];
         if (iGraphicsQueueFamily < 0 && qfQueueFamily.queueCount > 0 && (qfQueueFamily.queueFlags | VK_QUEUE_GRAPHICS_BIT)) {
             iGraphicsQueueFamily = iQueueFamily;
@@ -349,4 +351,49 @@ bool GfxAPIVulkan::IsQueueFamiliesSuitable() const {
         return false;
     }
     return true;
+}
+
+
+// Create the logical device the application will use.
+void GfxAPIVulkan::CreateLogicalDevice() {
+    // description of queues that should be created
+    VkDeviceQueueCreateInfo ciQueueCreateInfo = {};
+    ciQueueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    // create just the graphics command queue
+    ciQueueCreateInfo.queueCount = 1;
+    ciQueueCreateInfo.queueFamilyIndex = iGraphicsQueueFamily;
+    // set the queue priority
+    float queuePriority = 1.0f;
+    ciQueueCreateInfo.pQueuePriorities = &queuePriority;
+
+    // descroption of the logical device to create
+    VkDeviceCreateInfo ciLogicalDeviceCreateInfo = {};
+    ciLogicalDeviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    // set the queue create info
+    ciLogicalDeviceCreateInfo.pQueueCreateInfos = &ciQueueCreateInfo;
+    ciLogicalDeviceCreateInfo.queueCreateInfoCount = 1;
+
+    // list the needed device features
+    // NOTE: not specifying any for now, will revisit later
+    VkPhysicalDeviceFeatures deviceFeatures = {};
+    ciLogicalDeviceCreateInfo.pEnabledFeatures = &deviceFeatures;
+
+    // no enabled extensions yet
+    // NOTE: these are device specific extension, will come back to them when doing swap_chain setup
+    ciLogicalDeviceCreateInfo.enabledExtensionCount = 0;    
+
+    // if validation layers are enabled
+    if (Options::Get().ShouldUseValidationLayers()) {
+        // set the number and list of names of layers to enable
+        ciLogicalDeviceCreateInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        ciLogicalDeviceCreateInfo.ppEnabledLayerNames = validationLayers.data();
+    // else, no layers enabled
+    } else {
+        ciLogicalDeviceCreateInfo.enabledLayerCount = 0;
+    }
+
+    // create the logical device
+    if (!vkCreateDevice(vkdevPhysicalDevice, &ciLogicalDeviceCreateInfo, nullptr, &vkdevLogicalDevice)) {
+        throw std::runtime_error("Failed to create the logicla device");
+    }
 }

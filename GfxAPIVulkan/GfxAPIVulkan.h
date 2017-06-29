@@ -5,7 +5,7 @@
 // Implementation of Vulkan graphics API.
 class GfxAPIVulkan : public GfxAPI {
 private:
-    GfxAPIVulkan() : vkdevPhysicalDevice(VK_NULL_HANDLE), iGraphicsQueueFamily(-1) {};
+    GfxAPIVulkan() : vkdevPhysicalDevice(VK_NULL_HANDLE), vkdevLogicalDevice(VK_NULL_HANDLE), iGraphicsQueueFamily(-1) {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
 
@@ -45,6 +45,9 @@ private:
     // Do the queue families support all required features?
     bool IsQueueFamiliesSuitable() const;
 
+    // Create the logical device the application will use. Also creates the queues that commands will be submitted to.
+    void CreateLogicalDevice();
+
 private:
     // Handle to the vulkan instance.
     VkInstance vkiInstance;
@@ -52,6 +55,8 @@ private:
     VkDebugReportCallbackEXT clbkValidation;
     // Physical device (graphics card) used.
     VkPhysicalDevice vkdevPhysicalDevice;
+    // Logical device used.
+    VkDevice vkdevLogicalDevice;
 
     // Index of a queue family that supports graphics commands.
     int iGraphicsQueueFamily;
