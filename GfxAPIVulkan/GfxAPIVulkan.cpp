@@ -272,20 +272,20 @@ void GfxAPIVulkan::DestroyValidationErrorCallback() {
 // Select the physical device (graphics card) to render on
 void GfxAPIVulkan::SelectPhysicalDevice() {
     // enumerate the available physical devices
-    uint32_t deviceCount = 0;
-    vkEnumeratePhysicalDevices(vkiInstance, &deviceCount, nullptr);
+    uint32_t ctDevices = 0;
+    vkEnumeratePhysicalDevices(vkiInstance, &ctDevices, nullptr);
 
     // if there are no physical devices, we can't render, so throw
-    if (deviceCount == 0) {
+    if (ctDevices == 0) {
         throw std::runtime_error("No available physical devices");
     }
 
     // get info for all physical devices
-    std::vector<VkPhysicalDevice> physicalDevices(deviceCount);
-    vkEnumeratePhysicalDevices(vkiInstance, &deviceCount, physicalDevices.data());
+    std::vector<VkPhysicalDevice> aPhysicalDevices(ctDevices);
+    vkEnumeratePhysicalDevices(vkiInstance, &ctDevices, aPhysicalDevices.data());
 
     // find the first physical device that fits the needs
-    for (const VkPhysicalDevice &device : physicalDevices) {
+    for (const VkPhysicalDevice &device : aPhysicalDevices) {
         if (IsDeviceSuitable(device)) {
             vkdevPhysicalDevice = device;
             break;
@@ -314,5 +314,39 @@ bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) const {
     if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader) {
         return true;
     }
+
+    // if the queue families don't support all reqired features, the app can't work
+    if (!IsQueueFamiliesSuitable()) {
+        return false;
+    }
+
     return false;
+}
+
+
+// Find indices of queue families needed to support all application's features.
+void GfxAPIVulkan::FindQueueFamilies() {
+    // enumerate the available queue families
+    uint32_t ctQueueFamilies = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(vkdevPhysicalDevice, &ctQueueFamilies, nullptr);
+
+    std::vector<VkQueueFamilyProperties> aQueueFamilies(ctQueueFamilies);
+    vkGetPhysicalDeviceQueueFamilyProperties(vkdevPhysicalDevice, &ctQueueFamilies, aQueueFamilies.data());
+
+    // find the queue families that support required features
+    for (int iQueueFamily = 0; iQueueFamily < ctQueueFamilies; iQueueFamily++) {
+        const auto &qfQueueFamily = aQueueFamilies[iQueueFamily];
+        if (iGraphicsQueueFamily < 0 && qfQueueFamily.queueCount > 0 && (qfQueueFamily.queueFlags | VK_QUEUE_GRAPHICS_BIT)) {
+            iGraphicsQueueFamily = iQueueFamily;
+        }
+    }   
+}
+
+
+// Do the queue families support all required features?
+bool GfxAPIVulkan::IsQueueFamiliesSuitable() const {
+    if (iGraphicsQueueFamily < 0) {
+        return false;
+    }
+    return true;
 }
