@@ -92,9 +92,9 @@ void GfxAPIVulkan::CreateWindow(uint32_t dimWidth, uint32_t dimHeight) {
 void GfxAPIVulkan::CreateInstance() {
 
     // before trying to create the instance, check if all required extensions are supported
-    std::vector<const char*> requiredExtensions;
-    GetRequiredExtensions(requiredExtensions);
-    CheckExtensionSupport(requiredExtensions);
+    std::vector<const char*> astrRequiredExtensions;
+    GetRequiredInstanceExtensions(astrRequiredExtensions);
+    CheckInstanceExtensionSupport(astrRequiredExtensions);
 
     // if validation layers are enabled, set them up
     SetupValidationLayers();
@@ -123,8 +123,8 @@ void GfxAPIVulkan::CreateInstance() {
     // pointer to the appInfo
     createInfo.pApplicationInfo = &appInfo;
     // set the exteosion info
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
-    createInfo.ppEnabledExtensionNames = requiredExtensions.data();
+    createInfo.enabledExtensionCount = static_cast<uint32_t>(astrRequiredExtensions.size());
+    createInfo.ppEnabledExtensionNames = astrRequiredExtensions.data();
 
     // if validation layers are enabled
     if (Options::Get().ShouldUseValidationLayers()) {
@@ -147,43 +147,43 @@ void GfxAPIVulkan::CreateInstance() {
 }
 
 
-// Get the ulkan extensions required for the applciation to work.
-void GfxAPIVulkan::GetRequiredExtensions(std::vector<const char*> &requiredExtensions) {
-    requiredExtensions.clear();
-
+// Get the Vulkan instance extensions required for the applciation to work.
+void GfxAPIVulkan::GetRequiredInstanceExtensions(std::vector<const char*> &astrRequiredExtensions) const {
+    astrRequiredExtensions.clear();
+    
     // get the info on vulkan extension glfw needs to interface with the window system
     unsigned int glfwExtensionCount = 0;
     const char **glfwExtensions;
     glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
     for (unsigned int extensionIndex = 0; extensionIndex < glfwExtensionCount; ++extensionIndex) {
-        requiredExtensions.push_back(glfwExtensions[extensionIndex]);
+        astrRequiredExtensions.push_back(glfwExtensions[extensionIndex]);
     }
 
     if (Options::Get().ShouldUseValidationLayers()) {
-        requiredExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+        astrRequiredExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
     }
 }
 
 
-// Check if all required extensions are supported
-void GfxAPIVulkan::CheckExtensionSupport(const std::vector<const char*> &requiredExtensions) {
+// Check if all required instance extensions are supported
+void GfxAPIVulkan::CheckInstanceExtensionSupport(const std::vector<const char*> &astrRequiredExtensions) const {
     // get the number of supported extensions
-    uint32_t extensionCount = 0;
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+    uint32_t ctExtensions = 0;
+    vkEnumerateInstanceExtensionProperties(nullptr, &ctExtensions, nullptr);
 
     // prepare a vector to hold the extensions
-    std::vector<VkExtensionProperties> extensions(extensionCount);
+    std::vector<VkExtensionProperties> aAvailableExtensions(ctExtensions);
     // get the extension details
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+    vkEnumerateInstanceExtensionProperties(nullptr, &ctExtensions, aAvailableExtensions.data());
 
     // go through all required extensions
-    for (const char *extensionName : requiredExtensions) {
+    for (const char *strExtension : astrRequiredExtensions) {
         bool bFound = false;
         // search for the extension in the list of supported extensions
-        for (const auto &extensionProperties : extensions) {
+        for (const auto &propsExtension : aAvailableExtensions) {
             // if found, mark it and exit
-            if (strcmp(extensionName, extensionProperties.extensionName) == 0) {
+            if (strcmp(strExtension, propsExtension.extensionName) == 0) {
                 bFound = true;
                 break;
             }
@@ -195,6 +195,44 @@ void GfxAPIVulkan::CheckExtensionSupport(const std::vector<const char*> &require
     }
 }
 
+
+// Get the Vulkan device extensions required for the applciation to work.
+void GfxAPIVulkan::GetRequiredDeviceExtensions(std::vector<const char*> &astrRequiredExtensions) const {
+    astrRequiredExtensions.clear();
+
+    // swap chain extension is needed to be able to present images
+    astrRequiredExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+}
+
+
+// Check if all required device extensions are supported
+void GfxAPIVulkan::CheckDeviceExtensionSupport(const std::vector<const char*> &astrRequiredExtensions) const {
+    // get the number of supported extensions
+    uint32_t ctExtensions = 0;
+    vkEnumerateDeviceExtensionProperties(vkdevPhysicalDevice,nullptr, &ctExtensions, nullptr);
+
+    // prepare a vector to hold the extensions
+    std::vector<VkExtensionProperties> aAvailableExtensions(ctExtensions);
+    // get the extension details
+    vkEnumerateDeviceExtensionProperties(vkdevPhysicalDevice, nullptr, &ctExtensions, aAvailableExtensions.data());
+
+    // go through all required extensions
+    for (const char *strExtension : astrRequiredExtensions) {
+        bool bFound = false;
+        // search for the extension in the list of supported extensions
+        for (const auto &propsExtension : aAvailableExtensions) {
+            // if found, mark it and exit
+            if (strcmp(strExtension, propsExtension.extensionName) == 0) {
+                bFound = true;
+                break;
+            }
+        }
+        // if the extension was not found, throw an exception
+        if (!bFound) {
+            throw std::runtime_error("Not all required extensions are supported");
+        }
+    }
+}
 
 // Set up the validation layers.
 void GfxAPIVulkan::SetupValidationLayers() {
@@ -330,6 +368,11 @@ bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) const {
     if (!IsQueueFamiliesSuitable()) {
         return false;
     }
+
+    // before trying to create the instance, check if all required extensions are supported
+    std::vector<const char*> astrRequiredExtensions;
+    GetRequiredDeviceExtensions(astrRequiredExtensions);
+    CheckDeviceExtensionSupport(astrRequiredExtensions);
 
     return false;
 }

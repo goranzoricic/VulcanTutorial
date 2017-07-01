@@ -26,10 +26,15 @@ private:
     void CreateWindow(uint32_t dimWidth, uint32_t dimHeight);
     // Create the Vulkan instance.
     void CreateInstance();
-    // Get the ulkan extensions required for the applciation to work.
-    void GetRequiredExtensions(std::vector<const char*> &requiredExtensions);
-    // Check if all required extensions are supported.
-    void CheckExtensionSupport(const std::vector<const char*> &requiredExtensions);
+
+    // Get the Vulkan instance extensions required for the applciation to work.
+    void GetRequiredInstanceExtensions(std::vector<const char*> &astrRequiredExtensions) const;
+    // Check if all required instance extensions are supported.
+    void CheckInstanceExtensionSupport(const std::vector<const char*> &astrRequiredExtensions) const;
+    // Get the Vulkan device extensions required for the applciation to work.
+    void GetRequiredDeviceExtensions(std::vector<const char*> &astrRequiredExtensions) const;
+    // Check if all required device extensions are supported.
+    void CheckDeviceExtensionSupport(const std::vector<const char*> &astrRequiredExtensions) const;
 
     // NOTE: In the Vulkan SDK, Config directory, there is a vk_layer_settings.txt file that explains how to configure the validation layers.
     // Set up the validation layers.
