@@ -43,8 +43,6 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateSurface();
     // select the graphics card to use
     SelectPhysicalDevice();
-    // find indices of queue families needed to support all application's features.
-    FindQueueFamilies();
     // create the logical device
     CreateLogicalDevice();
 
@@ -206,15 +204,15 @@ void GfxAPIVulkan::GetRequiredDeviceExtensions(std::vector<const char*> &astrReq
 
 
 // Check if all required device extensions are supported
-void GfxAPIVulkan::CheckDeviceExtensionSupport(const std::vector<const char*> &astrRequiredExtensions) const {
+void GfxAPIVulkan::CheckDeviceExtensionSupport(const VkPhysicalDevice &device, const std::vector<const char*> &astrRequiredExtensions) const {
     // get the number of supported extensions
     uint32_t ctExtensions = 0;
-    vkEnumerateDeviceExtensionProperties(vkdevPhysicalDevice,nullptr, &ctExtensions, nullptr);
+    vkEnumerateDeviceExtensionProperties(device,nullptr, &ctExtensions, nullptr);
 
     // prepare a vector to hold the extensions
     std::vector<VkExtensionProperties> aAvailableExtensions(ctExtensions);
     // get the extension details
-    vkEnumerateDeviceExtensionProperties(vkdevPhysicalDevice, nullptr, &ctExtensions, aAvailableExtensions.data());
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &ctExtensions, aAvailableExtensions.data());
 
     // go through all required extensions
     for (const char *strExtension : astrRequiredExtensions) {
@@ -349,7 +347,7 @@ void GfxAPIVulkan::SelectPhysicalDevice() {
 
 
 // Does the device support all required features?
-bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) const {
+bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) {
     // get the data for properties of this device
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -360,10 +358,12 @@ bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) const {
     // NOTE: This is only an example of device property and feature selection, the real implementation would be more elaborate
     // and would probably select the best device available
     // the GfxAPIVulkan requires a discrete GPU and geometry shader support
-    if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader) {
-        return true;
+    if (deviceProperties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU || !deviceFeatures.geometryShader) {
+        return false;
     }
 
+    // find indices of queue families needed to support all application's features.
+    FindQueueFamilies(device);
     // if the queue families don't support all reqired features, the app can't work
     if (!IsQueueFamiliesSuitable()) {
         return false;
@@ -372,20 +372,27 @@ bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) const {
     // before trying to create the instance, check if all required extensions are supported
     std::vector<const char*> astrRequiredExtensions;
     GetRequiredDeviceExtensions(astrRequiredExtensions);
-    CheckDeviceExtensionSupport(astrRequiredExtensions);
+    CheckDeviceExtensionSupport(device, astrRequiredExtensions);
 
-    return false;
+    // get swap chain feature information
+    QuerySwapChainSupport(device);
+    // if the surface doesn't support any formats or present modes, the device isn't suitable
+    if (aFormats.empty() || aPresentModes.empty()) {
+        return false;
+    }
+
+    return true;
 }
 
 
 // Find indices of queue families needed to support all application's features.
-void GfxAPIVulkan::FindQueueFamilies() {
+void GfxAPIVulkan::FindQueueFamilies(const VkPhysicalDevice &device) {
     // enumerate the available queue families
     uint32_t ctQueueFamilies = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(vkdevPhysicalDevice, &ctQueueFamilies, nullptr);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &ctQueueFamilies, nullptr);
 
     std::vector<VkQueueFamilyProperties> aQueueFamilies(ctQueueFamilies);
-    vkGetPhysicalDeviceQueueFamilyProperties(vkdevPhysicalDevice, &ctQueueFamilies, aQueueFamilies.data());
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &ctQueueFamilies, aQueueFamilies.data());
 
     // find the queue families that support required features
     for (uint32_t iQueueFamily = 0; iQueueFamily < ctQueueFamilies; iQueueFamily++) {
@@ -398,7 +405,7 @@ void GfxAPIVulkan::FindQueueFamilies() {
         // if this is the first queue family that supports presentation, store its index
         if (iPresentationQueueFamily < 0 && qfQueueFamily.queueCount > 0) {
             VkBool32 bPresentationSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(vkdevPhysicalDevice, iQueueFamily, sfcSurface, &bPresentationSupport);
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, iQueueFamily, sfcSurface, &bPresentationSupport);
             if (bPresentationSupport) {
                 iPresentationQueueFamily = iQueueFamily;
             }
@@ -406,13 +413,31 @@ void GfxAPIVulkan::FindQueueFamilies() {
     }   
 }
 
-
 // Do the queue families support all required features?
 bool GfxAPIVulkan::IsQueueFamiliesSuitable() const {
     if (iGraphicsQueueFamily < 0) {
         return false;
     }
     return true;
+}
+
+
+// Collect information about swap chain feature support.
+void GfxAPIVulkan::QuerySwapChainSupport(const VkPhysicalDevice &device) {
+    // get the capabilieies of the surface
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, sfcSurface, &capsSurface);
+
+    // get the supported formats
+    uint32_t ctFormats;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, sfcSurface, &ctFormats, nullptr);
+    aFormats.resize(ctFormats);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, sfcSurface, &ctFormats, aFormats.data());
+
+    // get the supproted present modes
+    uint32_t ctPresentModes;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, sfcSurface, &ctPresentModes, nullptr);
+    aPresentModes.resize(ctPresentModes);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, sfcSurface, &ctPresentModes, aPresentModes.data());
 }
 
 
