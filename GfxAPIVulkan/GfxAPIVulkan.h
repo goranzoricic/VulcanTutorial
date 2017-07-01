@@ -61,6 +61,12 @@ private:
 
     // Collect information about swap chain feature support.
     void QuerySwapChainSupport(const VkPhysicalDevice &device);
+    // Select the swap chain format to use.
+    void SelectSwapChainFormat();
+    // Select the presentation mode to use.
+    void SelectSwapChainPresentMode();
+    // Select the swap chain extent to use.
+    void SelectSwapChainExtent();
 
     // Create the logical device the application will use. Also creates the queues that commands will be submitted to.
     void CreateLogicalDevice();
@@ -77,6 +83,13 @@ private:
     std::vector<VkSurfaceFormatKHR> aFormats;
     // Present modes supported by the surface.
     std::vector<VkPresentModeKHR> aPresentModes;
+
+    // Swap chain format selected for use.
+    VkSurfaceFormatKHR sfmtFormat;
+    // Present mode selected for use
+    VkPresentModeKHR spmPresentMode;
+    // Extent (resolution) selected for the swap chain.
+    VkExtent2D sexExtent;
 
     // Handle to the debug callback.
     VkDebugReportCallbackEXT clbkValidation;

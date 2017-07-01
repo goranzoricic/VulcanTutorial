@@ -441,6 +441,66 @@ void GfxAPIVulkan::QuerySwapChainSupport(const VkPhysicalDevice &device) {
 }
 
 
+// Select the swap chain format to use.
+void GfxAPIVulkan::SelectSwapChainFormat() {
+    // if the API returmed VK_FORMAT_UNDEFINED as the only supported format, that means that the surface 
+    // doesn't care which format is use, so we pick the one that suits us best
+    // NOTE: look into using VK_COLOR_SPACE_SCRGB_LINEAR_EXT instead
+    if (aFormats.size() == 1 && aFormats[0].format == VK_FORMAT_UNDEFINED) {
+        sfmtFormat = { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
+        return;
+    }
+
+    // otherwise, try to find the desired format among the returned formats
+    for (const auto &format : aFormats) {
+        if (format.colorSpace == VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT && format.format == VK_FORMAT_B8G8R8A8_UNORM) {
+            sfmtFormat = { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
+            return;
+        }
+    }
+
+    // if that also failed, just use the first format available and hope for the best
+    // NOTE: look into how to improve this
+    sfmtFormat = aFormats[0];
+}
+
+
+// Select the presentation mode to use.
+void GfxAPIVulkan::SelectSwapChainPresentMode() {
+    // default to immediate presentation mode
+    spmPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+
+    // go through all supported present modes
+    for (const auto &pmPresentMode : aPresentModes) {
+        // if the mailbox mode is available, use it (for tripple buffering)
+        if (pmPresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+            spmPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+            return;
+        // if the immediate mode is supported, use that (because some drivers don't support VK_PRESENT_MODE_FIFO_KHR correctly)
+        // NOTE: look into this
+        } else if (pmPresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+            spmPresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+            // do not return, in case the mailbox mode is listed after this one in the array
+        }
+    }
+}
+
+
+// Select the swap chain extent to use.
+void GfxAPIVulkan::SelectSwapChainExtent() {
+    // uint32_max is set to width and height to signal matching to window dimensions
+    if (capsSurface.currentExtent.width == std::numeric_limits<uint32_t>::max()) {
+        sexExtent = capsSurface.currentExtent;
+        return;
+    }
+
+    // otherwise, try to fit the extent to the window size as much as possible
+    sexExtent.width = std::max(capsSurface.minImageExtent.width, std::min(capsSurface.maxImageExtent.width, _wndWindow->GetWidth()));
+    sexExtent.height = std::max(capsSurface.minImageExtent.height, std::min(capsSurface.maxImageExtent.height, _wndWindow->GetHeight()));
+}
+
+
+
 // Create the logical device the application will use.
 void GfxAPIVulkan::CreateLogicalDevice() {
 
