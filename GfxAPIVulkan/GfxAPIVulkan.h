@@ -74,6 +74,11 @@ private:
     // Create the logical device the application will use. Also creates the queues that commands will be submitted to.
     void CreateLogicalDevice();
 
+    // Create the image views needed to acces swap chain images.
+    void CreateImageViews();
+    // Destroy the image views.
+    void DestroyImageViews();
+
 private:
     // Handle to the vulkan instance.
     VkInstance vkiInstance;
@@ -91,6 +96,8 @@ private:
     std::vector<VkPresentModeKHR> aPresentModes;
     // Handles to swap chain images.
     std::vector<VkImage> aimgImages;
+    // Views to swap chain images.
+    std::vector<VkImageView> aimgvImageViews;
 
     // Swap chain format selected for use.
     VkSurfaceFormatKHR sfmtFormat;

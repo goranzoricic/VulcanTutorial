@@ -47,6 +47,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateLogicalDevice();
     // create the swap chain
     CreateSwapChain();
+    // create image views
+    CreateImageViews();
 
     return true;
 }
@@ -54,6 +56,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // destroy the image views
+    DestroyImageViews();
     // destroy the swap chain
     vkDestroySwapchainKHR(vkdevLogicalDevice, swcSwapChain, nullptr);
     // destroy the logical devics
@@ -582,6 +586,54 @@ void GfxAPIVulkan::SelectSwapChainExtent() {
     sexExtent.height = std::max(capsSurface.minImageExtent.height, std::min(capsSurface.maxImageExtent.height, _wndWindow->GetHeight()));
 }
 
+
+// Create the image views needed to acces swap chain images.
+void GfxAPIVulkan::CreateImageViews() {
+    // resize the array to the correct number of views
+    aimgvImageViews.resize(aimgImages.size());
+
+    // prepare the create info
+    VkImageViewCreateInfo ciImageView = {};
+    ciImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+
+    // use it as a 2D texture (could be 1D, 2D, 3D, cube map)
+    ciImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    // set the format
+    ciImageView.format = sfmtFormat.format;
+
+    // set the channel mappings, use defaults
+    // this allowes to bind various things to channels - swap channels around, 0, 1...
+    ciImageView.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    ciImageView.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    ciImageView.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    ciImageView.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+    // specify that thi should be a color target, without any layers or mip maps
+    ciImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    ciImageView.subresourceRange.baseMipLevel = 0;
+    ciImageView.subresourceRange.levelCount = 1;
+    ciImageView.subresourceRange.baseArrayLayer = 0;
+    ciImageView.subresourceRange.layerCount = 1;
+
+    // for each swap chain image, create the view
+    for (size_t iImage = 0; iImage < aimgImages.size(); ++iImage) {
+        // set the image handle
+        ciImageView.image = aimgImages[iImage];
+        // create the image view
+        if (vkCreateImageView(vkdevLogicalDevice, &ciImageView, nullptr, &aimgvImageViews[iImage]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create an image view");
+        }
+    }
+}
+
+
+// Destroy the image views.
+void GfxAPIVulkan::DestroyImageViews() {
+    // for each swap chain image, create the view
+    for (VkImageView &imgvView : aimgvImageViews) {
+        vkDestroyImageView(vkdevLogicalDevice, imgvView, nullptr);
+    }
+}
 
 
 // Create the logical device the application will use.
