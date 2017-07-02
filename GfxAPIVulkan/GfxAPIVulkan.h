@@ -10,7 +10,8 @@ private:
                     iGraphicsQueueFamily(-1),
                     qGraphicsQueue(VK_NULL_HANDLE),
                     iPresentationQueueFamily(-1),
-                    qPresentationQueue(VK_NULL_HANDLE)
+                    qPresentationQueue(VK_NULL_HANDLE),
+                    swcSwapChain(VK_NULL_HANDLE)
     {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
@@ -61,6 +62,8 @@ private:
 
     // Collect information about swap chain feature support.
     void QuerySwapChainSupport(const VkPhysicalDevice &device);
+    // Create the swap chain to use for presenting images.
+    void CreateSwapChain();
     // Select the swap chain format to use.
     void SelectSwapChainFormat();
     // Select the presentation mode to use.
@@ -79,10 +82,15 @@ private:
     VkSurfaceKHR sfcSurface;
     // Capabilities of the drawing surface.
     VkSurfaceCapabilitiesKHR capsSurface;
+
+    // Swap chain to use for rendering.
+    VkSwapchainKHR swcSwapChain;
     // Drawing formats that the device support.
     std::vector<VkSurfaceFormatKHR> aFormats;
     // Present modes supported by the surface.
     std::vector<VkPresentModeKHR> aPresentModes;
+    // Handles to swap chain images.
+    std::vector<VkImage> aimgImages;
 
     // Swap chain format selected for use.
     VkSurfaceFormatKHR sfmtFormat;

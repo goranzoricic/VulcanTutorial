@@ -45,6 +45,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     SelectPhysicalDevice();
     // create the logical device
     CreateLogicalDevice();
+    // create the swap chain
+    CreateSwapChain();
 
     return true;
 }
@@ -52,6 +54,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // destroy the swap chain
+    vkDestroySwapchainKHR(vkdevLogicalDevice, swcSwapChain, nullptr);
     // destroy the logical devics
     vkDestroyDevice(vkdevLogicalDevice, nullptr);
     // remove the validation callback
@@ -115,28 +119,28 @@ void GfxAPIVulkan::CreateInstance() {
 
 
     // create the info about which extensions and validators we want to use
-    VkInstanceCreateInfo createInfo = {};
+    VkInstanceCreateInfo ciInstance = {};
     // type of the create info struct
-    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    ciInstance.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     // pointer to the appInfo
-    createInfo.pApplicationInfo = &appInfo;
+    ciInstance.pApplicationInfo = &appInfo;
     // set the exteosion info
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(astrRequiredExtensions.size());
-    createInfo.ppEnabledExtensionNames = astrRequiredExtensions.data();
+    ciInstance.enabledExtensionCount = static_cast<uint32_t>(astrRequiredExtensions.size());
+    ciInstance.ppEnabledExtensionNames = astrRequiredExtensions.data();
 
     // if validation layers are enabled
     if (Options::Get().ShouldUseValidationLayers()) {
         // set the number and list of names of layers to enable
-        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-        createInfo.ppEnabledLayerNames = validationLayers.data();
+        ciInstance.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        ciInstance.ppEnabledLayerNames = validationLayers.data();
         // else, no layers enabled
     }
     else {
-        createInfo.enabledLayerCount = 0;
+        ciInstance.enabledLayerCount = 0;
     }
 
     // create the vulkan instance
-    VkResult result = vkCreateInstance(&createInfo, nullptr, &vkiInstance);
+    VkResult result = vkCreateInstance(&ciInstance, nullptr, &vkiInstance);
 
     // if the instance wasn't created successfully, throw
     if (result != VK_SUCCESS) {
@@ -276,18 +280,18 @@ void GfxAPIVulkan::SetupValidationErrorCallback() {
         return;
     }
     // prepare the struct to create the callback
-    VkDebugReportCallbackCreateInfoEXT callbackInfo = {};
+    VkDebugReportCallbackCreateInfoEXT ciCallback = {};
     // set the type of the struct
-    callbackInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+    ciCallback.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
     // enable the callback for errors and warnings
-    callbackInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
+    ciCallback.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
     // set the function pointer
-    callbackInfo.pfnCallback = ValidationErrorCallback;
+    ciCallback.pfnCallback = ValidationErrorCallback;
 
     // the function that creates the actual callback has to be obtained through vkGetInstanceProcAddr
     auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(vkiInstance, "vkCreateDebugReportCallbackEXT");
     // create the callback, and throw an exception if creation fails
-    if (vkCreateDebugReportCallbackEXT == nullptr || vkCreateDebugReportCallbackEXT(vkiInstance, &callbackInfo, nullptr, &clbkValidation) != VK_SUCCESS) {
+    if (vkCreateDebugReportCallbackEXT == nullptr || vkCreateDebugReportCallbackEXT(vkiInstance, &ciCallback, nullptr, &clbkValidation) != VK_SUCCESS) {
         throw std::runtime_error("Failed to set up the validation layer debug callback");
     }
 }
@@ -441,6 +445,85 @@ void GfxAPIVulkan::QuerySwapChainSupport(const VkPhysicalDevice &device) {
 }
 
 
+// Create the swap chain to use for presenting images.
+void GfxAPIVulkan::CreateSwapChain() {
+    // select swap chain format, present mode and extent to use
+    SelectSwapChainFormat();
+    SelectSwapChainPresentMode();
+    SelectSwapChainExtent();
+
+    // select the number of images in the swap chain queue - one more than minimum, for tripple buffering
+    uint32_t ctImages = capsSurface.minImageCount + 1;
+    // maxImageCount of 0 indicates unlimited max images (limited by available memory)
+    // if the number of images is limited to below the desired number, clamp to maximum
+    if (capsSurface.maxImageCount > 0 && ctImages > capsSurface.maxImageCount) {
+        ctImages = capsSurface.maxImageCount;
+    }
+
+    // prepare the description of the swap chain to be created
+    VkSwapchainCreateInfoKHR ciSwapChain = {};
+    ciSwapChain.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    ciSwapChain.surface = sfcSurface;
+
+    // fill in the info collected earlier
+    ciSwapChain.minImageCount = ctImages;
+    ciSwapChain.imageFormat = sfmtFormat.format;
+    ciSwapChain.imageColorSpace = sfmtFormat.colorSpace;
+    ciSwapChain.imageExtent = sexExtent;
+
+    // specify the present mode and mark that clipped pixels (e.g. behind another window) are not important
+    ciSwapChain.presentMode = spmPresentMode;
+    ciSwapChain.clipped = VK_TRUE;
+
+    // image has only one layer (more is used for stereoscopic 3D)
+    ciSwapChain.imageArrayLayers = 1;
+    // this specifies that this image will be rendered to directly
+    ciSwapChain.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    // prepare queue familiy indices to be given to Vulkan
+    uint32_t aQueueFamilyIndices[] = { (uint32_t)iGraphicsQueueFamily, (uint32_t)iPresentationQueueFamily };
+
+    // if the same queue family is used for graphics commands and presentation
+    if (iGraphicsQueueFamily == iPresentationQueueFamily) {
+        // flag that the image can be owned exclusively by one queue family
+        // this means that ownership must be transfered explicitly to another queue family if it becomes neccessary
+        // this mode gives best performance
+        ciSwapChain.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        ciSwapChain.queueFamilyIndexCount = 0;
+        ciSwapChain.pQueueFamilyIndices = nullptr;
+    // else, if graphic commands and presentation will be handled by different queue families
+    } else {
+        // mark that multiple queue families will need concurrent access to the swap chain images
+        ciSwapChain.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        // send the queue family info to the API
+        ciSwapChain.queueFamilyIndexCount = 2;
+        ciSwapChain.pQueueFamilyIndices = aQueueFamilyIndices;
+    }
+
+    // we can request that a transform is applied to the image before presentation
+    // specifying that the current transform should be used means that no transform will be applied
+    ciSwapChain.preTransform = capsSurface.currentTransform;
+
+    // the image should be presented as opaque, no alpha blending
+    ciSwapChain.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+
+    // no old swapchain
+    // in some cases (e.g. window is resized) the swap chain must be recreated. Then, the handle to the old swap chain
+    // must be set. 
+    ciSwapChain.oldSwapchain = VK_NULL_HANDLE;
+
+    // create the swap chain
+    if (vkCreateSwapchainKHR(vkdevLogicalDevice, &ciSwapChain, nullptr, &swcSwapChain) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the swap chain");
+    }
+
+    // get the handles to swap chain images
+    vkGetSwapchainImagesKHR(vkdevLogicalDevice, swcSwapChain, &ctImages, nullptr);
+    aimgImages.resize(ctImages);
+    vkGetSwapchainImagesKHR(vkdevLogicalDevice, swcSwapChain, &ctImages, aimgImages.data());
+}
+
+
 // Select the swap chain format to use.
 void GfxAPIVulkan::SelectSwapChainFormat() {
     // if the API returmed VK_FORMAT_UNDEFINED as the only supported format, that means that the surface 
@@ -533,9 +616,11 @@ void GfxAPIVulkan::CreateLogicalDevice() {
     VkPhysicalDeviceFeatures deviceFeatures = {};
     ciLogicalDeviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
-    // no enabled extensions yet
-    // NOTE: these are device specific extension, will come back to them when doing swap_chain setup
-    ciLogicalDeviceCreateInfo.enabledExtensionCount = 0;    
+    // enable the required extensions
+    std::vector<const char*> astrRequiredExtensions;
+    GetRequiredDeviceExtensions(astrRequiredExtensions);
+    ciLogicalDeviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(astrRequiredExtensions.size());
+    ciLogicalDeviceCreateInfo.ppEnabledExtensionNames = astrRequiredExtensions.data();
 
     // if validation layers are enabled
     if (Options::Get().ShouldUseValidationLayers()) {
