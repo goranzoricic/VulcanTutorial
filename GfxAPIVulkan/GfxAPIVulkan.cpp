@@ -43,10 +43,12 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateSurface();
     // select the graphics card to use
     SelectPhysicalDevice();
-    // find indices of queue families needed to support all application's features.
-    FindQueueFamilies();
     // create the logical device
     CreateLogicalDevice();
+    // create the swap chain
+    CreateSwapChain();
+    // create image views
+    CreateImageViews();
 
     return true;
 }
@@ -54,6 +56,10 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // destroy the image views
+    DestroyImageViews();
+    // destroy the swap chain
+    vkDestroySwapchainKHR(vkdevLogicalDevice, swcSwapChain, nullptr);
     // destroy the logical devics
     vkDestroyDevice(vkdevLogicalDevice, nullptr);
     // remove the validation callback
@@ -92,9 +98,9 @@ void GfxAPIVulkan::CreateWindow(uint32_t dimWidth, uint32_t dimHeight) {
 void GfxAPIVulkan::CreateInstance() {
 
     // before trying to create the instance, check if all required extensions are supported
-    std::vector<const char*> requiredExtensions;
-    GetRequiredExtensions(requiredExtensions);
-    CheckExtensionSupport(requiredExtensions);
+    std::vector<const char*> astrRequiredExtensions;
+    GetRequiredInstanceExtensions(astrRequiredExtensions);
+    CheckInstanceExtensionSupport(astrRequiredExtensions);
 
     // if validation layers are enabled, set them up
     SetupValidationLayers();
@@ -117,28 +123,28 @@ void GfxAPIVulkan::CreateInstance() {
 
 
     // create the info about which extensions and validators we want to use
-    VkInstanceCreateInfo createInfo = {};
+    VkInstanceCreateInfo ciInstance = {};
     // type of the create info struct
-    createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+    ciInstance.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     // pointer to the appInfo
-    createInfo.pApplicationInfo = &appInfo;
+    ciInstance.pApplicationInfo = &appInfo;
     // set the exteosion info
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
-    createInfo.ppEnabledExtensionNames = requiredExtensions.data();
+    ciInstance.enabledExtensionCount = static_cast<uint32_t>(astrRequiredExtensions.size());
+    ciInstance.ppEnabledExtensionNames = astrRequiredExtensions.data();
 
     // if validation layers are enabled
     if (Options::Get().ShouldUseValidationLayers()) {
         // set the number and list of names of layers to enable
-        createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-        createInfo.ppEnabledLayerNames = validationLayers.data();
+        ciInstance.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
+        ciInstance.ppEnabledLayerNames = validationLayers.data();
         // else, no layers enabled
     }
     else {
-        createInfo.enabledLayerCount = 0;
+        ciInstance.enabledLayerCount = 0;
     }
 
     // create the vulkan instance
-    VkResult result = vkCreateInstance(&createInfo, nullptr, &vkiInstance);
+    VkResult result = vkCreateInstance(&ciInstance, nullptr, &vkiInstance);
 
     // if the instance wasn't created successfully, throw
     if (result != VK_SUCCESS) {
@@ -147,43 +153,43 @@ void GfxAPIVulkan::CreateInstance() {
 }
 
 
-// Get the ulkan extensions required for the applciation to work.
-void GfxAPIVulkan::GetRequiredExtensions(std::vector<const char*> &requiredExtensions) {
-    requiredExtensions.clear();
-
+// Get the Vulkan instance extensions required for the applciation to work.
+void GfxAPIVulkan::GetRequiredInstanceExtensions(std::vector<const char*> &astrRequiredExtensions) const {
+    astrRequiredExtensions.clear();
+    
     // get the info on vulkan extension glfw needs to interface with the window system
     unsigned int glfwExtensionCount = 0;
     const char **glfwExtensions;
     glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
     for (unsigned int extensionIndex = 0; extensionIndex < glfwExtensionCount; ++extensionIndex) {
-        requiredExtensions.push_back(glfwExtensions[extensionIndex]);
+        astrRequiredExtensions.push_back(glfwExtensions[extensionIndex]);
     }
 
     if (Options::Get().ShouldUseValidationLayers()) {
-        requiredExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+        astrRequiredExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
     }
 }
 
 
-// Check if all required extensions are supported
-void GfxAPIVulkan::CheckExtensionSupport(const std::vector<const char*> &requiredExtensions) {
+// Check if all required instance extensions are supported
+void GfxAPIVulkan::CheckInstanceExtensionSupport(const std::vector<const char*> &astrRequiredExtensions) const {
     // get the number of supported extensions
-    uint32_t extensionCount = 0;
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
+    uint32_t ctExtensions = 0;
+    vkEnumerateInstanceExtensionProperties(nullptr, &ctExtensions, nullptr);
 
     // prepare a vector to hold the extensions
-    std::vector<VkExtensionProperties> extensions(extensionCount);
+    std::vector<VkExtensionProperties> aAvailableExtensions(ctExtensions);
     // get the extension details
-    vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
+    vkEnumerateInstanceExtensionProperties(nullptr, &ctExtensions, aAvailableExtensions.data());
 
     // go through all required extensions
-    for (const char *extensionName : requiredExtensions) {
+    for (const char *strExtension : astrRequiredExtensions) {
         bool bFound = false;
         // search for the extension in the list of supported extensions
-        for (const auto &extensionProperties : extensions) {
+        for (const auto &propsExtension : aAvailableExtensions) {
             // if found, mark it and exit
-            if (strcmp(extensionName, extensionProperties.extensionName) == 0) {
+            if (strcmp(strExtension, propsExtension.extensionName) == 0) {
                 bFound = true;
                 break;
             }
@@ -195,6 +201,44 @@ void GfxAPIVulkan::CheckExtensionSupport(const std::vector<const char*> &require
     }
 }
 
+
+// Get the Vulkan device extensions required for the applciation to work.
+void GfxAPIVulkan::GetRequiredDeviceExtensions(std::vector<const char*> &astrRequiredExtensions) const {
+    astrRequiredExtensions.clear();
+
+    // swap chain extension is needed to be able to present images
+    astrRequiredExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+}
+
+
+// Check if all required device extensions are supported
+void GfxAPIVulkan::CheckDeviceExtensionSupport(const VkPhysicalDevice &device, const std::vector<const char*> &astrRequiredExtensions) const {
+    // get the number of supported extensions
+    uint32_t ctExtensions = 0;
+    vkEnumerateDeviceExtensionProperties(device,nullptr, &ctExtensions, nullptr);
+
+    // prepare a vector to hold the extensions
+    std::vector<VkExtensionProperties> aAvailableExtensions(ctExtensions);
+    // get the extension details
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &ctExtensions, aAvailableExtensions.data());
+
+    // go through all required extensions
+    for (const char *strExtension : astrRequiredExtensions) {
+        bool bFound = false;
+        // search for the extension in the list of supported extensions
+        for (const auto &propsExtension : aAvailableExtensions) {
+            // if found, mark it and exit
+            if (strcmp(strExtension, propsExtension.extensionName) == 0) {
+                bFound = true;
+                break;
+            }
+        }
+        // if the extension was not found, throw an exception
+        if (!bFound) {
+            throw std::runtime_error("Not all required extensions are supported");
+        }
+    }
+}
 
 // Set up the validation layers.
 void GfxAPIVulkan::SetupValidationLayers() {
@@ -240,18 +284,18 @@ void GfxAPIVulkan::SetupValidationErrorCallback() {
         return;
     }
     // prepare the struct to create the callback
-    VkDebugReportCallbackCreateInfoEXT callbackInfo = {};
+    VkDebugReportCallbackCreateInfoEXT ciCallback = {};
     // set the type of the struct
-    callbackInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+    ciCallback.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
     // enable the callback for errors and warnings
-    callbackInfo.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
+    ciCallback.flags = VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
     // set the function pointer
-    callbackInfo.pfnCallback = ValidationErrorCallback;
+    ciCallback.pfnCallback = ValidationErrorCallback;
 
     // the function that creates the actual callback has to be obtained through vkGetInstanceProcAddr
     auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(vkiInstance, "vkCreateDebugReportCallbackEXT");
     // create the callback, and throw an exception if creation fails
-    if (vkCreateDebugReportCallbackEXT == nullptr || vkCreateDebugReportCallbackEXT(vkiInstance, &callbackInfo, nullptr, &clbkValidation) != VK_SUCCESS) {
+    if (vkCreateDebugReportCallbackEXT == nullptr || vkCreateDebugReportCallbackEXT(vkiInstance, &ciCallback, nullptr, &clbkValidation) != VK_SUCCESS) {
         throw std::runtime_error("Failed to set up the validation layer debug callback");
     }
 }
@@ -311,7 +355,7 @@ void GfxAPIVulkan::SelectPhysicalDevice() {
 
 
 // Does the device support all required features?
-bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) const {
+bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) {
     // get the data for properties of this device
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(device, &deviceProperties);
@@ -322,27 +366,41 @@ bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) const {
     // NOTE: This is only an example of device property and feature selection, the real implementation would be more elaborate
     // and would probably select the best device available
     // the GfxAPIVulkan requires a discrete GPU and geometry shader support
-    if (deviceProperties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU && deviceFeatures.geometryShader) {
-        return true;
+    if (deviceProperties.deviceType != VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU || !deviceFeatures.geometryShader) {
+        return false;
     }
 
+    // find indices of queue families needed to support all application's features.
+    FindQueueFamilies(device);
     // if the queue families don't support all reqired features, the app can't work
     if (!IsQueueFamiliesSuitable()) {
         return false;
     }
 
-    return false;
+    // before trying to create the instance, check if all required extensions are supported
+    std::vector<const char*> astrRequiredExtensions;
+    GetRequiredDeviceExtensions(astrRequiredExtensions);
+    CheckDeviceExtensionSupport(device, astrRequiredExtensions);
+
+    // get swap chain feature information
+    QuerySwapChainSupport(device);
+    // if the surface doesn't support any formats or present modes, the device isn't suitable
+    if (aFormats.empty() || aPresentModes.empty()) {
+        return false;
+    }
+
+    return true;
 }
 
 
 // Find indices of queue families needed to support all application's features.
-void GfxAPIVulkan::FindQueueFamilies() {
+void GfxAPIVulkan::FindQueueFamilies(const VkPhysicalDevice &device) {
     // enumerate the available queue families
     uint32_t ctQueueFamilies = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(vkdevPhysicalDevice, &ctQueueFamilies, nullptr);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &ctQueueFamilies, nullptr);
 
     std::vector<VkQueueFamilyProperties> aQueueFamilies(ctQueueFamilies);
-    vkGetPhysicalDeviceQueueFamilyProperties(vkdevPhysicalDevice, &ctQueueFamilies, aQueueFamilies.data());
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &ctQueueFamilies, aQueueFamilies.data());
 
     // find the queue families that support required features
     for (uint32_t iQueueFamily = 0; iQueueFamily < ctQueueFamilies; iQueueFamily++) {
@@ -355,7 +413,7 @@ void GfxAPIVulkan::FindQueueFamilies() {
         // if this is the first queue family that supports presentation, store its index
         if (iPresentationQueueFamily < 0 && qfQueueFamily.queueCount > 0) {
             VkBool32 bPresentationSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(vkdevPhysicalDevice, iQueueFamily, sfcSurface, &bPresentationSupport);
+            vkGetPhysicalDeviceSurfaceSupportKHR(device, iQueueFamily, sfcSurface, &bPresentationSupport);
             if (bPresentationSupport) {
                 iPresentationQueueFamily = iQueueFamily;
             }
@@ -363,13 +421,218 @@ void GfxAPIVulkan::FindQueueFamilies() {
     }   
 }
 
-
 // Do the queue families support all required features?
 bool GfxAPIVulkan::IsQueueFamiliesSuitable() const {
     if (iGraphicsQueueFamily < 0) {
         return false;
     }
     return true;
+}
+
+
+// Collect information about swap chain feature support.
+void GfxAPIVulkan::QuerySwapChainSupport(const VkPhysicalDevice &device) {
+    // get the capabilieies of the surface
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, sfcSurface, &capsSurface);
+
+    // get the supported formats
+    uint32_t ctFormats;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, sfcSurface, &ctFormats, nullptr);
+    aFormats.resize(ctFormats);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, sfcSurface, &ctFormats, aFormats.data());
+
+    // get the supproted present modes
+    uint32_t ctPresentModes;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, sfcSurface, &ctPresentModes, nullptr);
+    aPresentModes.resize(ctPresentModes);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, sfcSurface, &ctPresentModes, aPresentModes.data());
+}
+
+
+// Create the swap chain to use for presenting images.
+void GfxAPIVulkan::CreateSwapChain() {
+    // select swap chain format, present mode and extent to use
+    SelectSwapChainFormat();
+    SelectSwapChainPresentMode();
+    SelectSwapChainExtent();
+
+    // select the number of images in the swap chain queue - one more than minimum, for tripple buffering
+    uint32_t ctImages = capsSurface.minImageCount + 1;
+    // maxImageCount of 0 indicates unlimited max images (limited by available memory)
+    // if the number of images is limited to below the desired number, clamp to maximum
+    if (capsSurface.maxImageCount > 0 && ctImages > capsSurface.maxImageCount) {
+        ctImages = capsSurface.maxImageCount;
+    }
+
+    // prepare the description of the swap chain to be created
+    VkSwapchainCreateInfoKHR ciSwapChain = {};
+    ciSwapChain.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    ciSwapChain.surface = sfcSurface;
+
+    // fill in the info collected earlier
+    ciSwapChain.minImageCount = ctImages;
+    ciSwapChain.imageFormat = sfmtFormat.format;
+    ciSwapChain.imageColorSpace = sfmtFormat.colorSpace;
+    ciSwapChain.imageExtent = sexExtent;
+
+    // specify the present mode and mark that clipped pixels (e.g. behind another window) are not important
+    ciSwapChain.presentMode = spmPresentMode;
+    ciSwapChain.clipped = VK_TRUE;
+
+    // image has only one layer (more is used for stereoscopic 3D)
+    ciSwapChain.imageArrayLayers = 1;
+    // this specifies that this image will be rendered to directly
+    ciSwapChain.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    // prepare queue familiy indices to be given to Vulkan
+    uint32_t aQueueFamilyIndices[] = { (uint32_t)iGraphicsQueueFamily, (uint32_t)iPresentationQueueFamily };
+
+    // if the same queue family is used for graphics commands and presentation
+    if (iGraphicsQueueFamily == iPresentationQueueFamily) {
+        // flag that the image can be owned exclusively by one queue family
+        // this means that ownership must be transfered explicitly to another queue family if it becomes neccessary
+        // this mode gives best performance
+        ciSwapChain.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        ciSwapChain.queueFamilyIndexCount = 0;
+        ciSwapChain.pQueueFamilyIndices = nullptr;
+    // else, if graphic commands and presentation will be handled by different queue families
+    } else {
+        // mark that multiple queue families will need concurrent access to the swap chain images
+        ciSwapChain.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        // send the queue family info to the API
+        ciSwapChain.queueFamilyIndexCount = 2;
+        ciSwapChain.pQueueFamilyIndices = aQueueFamilyIndices;
+    }
+
+    // we can request that a transform is applied to the image before presentation
+    // specifying that the current transform should be used means that no transform will be applied
+    ciSwapChain.preTransform = capsSurface.currentTransform;
+
+    // the image should be presented as opaque, no alpha blending
+    ciSwapChain.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+
+    // no old swapchain
+    // in some cases (e.g. window is resized) the swap chain must be recreated. Then, the handle to the old swap chain
+    // must be set. 
+    ciSwapChain.oldSwapchain = VK_NULL_HANDLE;
+
+    // create the swap chain
+    if (vkCreateSwapchainKHR(vkdevLogicalDevice, &ciSwapChain, nullptr, &swcSwapChain) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the swap chain");
+    }
+
+    // get the handles to swap chain images
+    vkGetSwapchainImagesKHR(vkdevLogicalDevice, swcSwapChain, &ctImages, nullptr);
+    aimgImages.resize(ctImages);
+    vkGetSwapchainImagesKHR(vkdevLogicalDevice, swcSwapChain, &ctImages, aimgImages.data());
+}
+
+
+// Select the swap chain format to use.
+void GfxAPIVulkan::SelectSwapChainFormat() {
+    // if the API returmed VK_FORMAT_UNDEFINED as the only supported format, that means that the surface 
+    // doesn't care which format is use, so we pick the one that suits us best
+    // NOTE: look into using VK_COLOR_SPACE_SCRGB_LINEAR_EXT instead
+    if (aFormats.size() == 1 && aFormats[0].format == VK_FORMAT_UNDEFINED) {
+        sfmtFormat = { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
+        return;
+    }
+
+    // otherwise, try to find the desired format among the returned formats
+    for (const auto &format : aFormats) {
+        if (format.colorSpace == VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT && format.format == VK_FORMAT_B8G8R8A8_UNORM) {
+            sfmtFormat = { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
+            return;
+        }
+    }
+
+    // if that also failed, just use the first format available and hope for the best
+    // NOTE: look into how to improve this
+    sfmtFormat = aFormats[0];
+}
+
+
+// Select the presentation mode to use.
+void GfxAPIVulkan::SelectSwapChainPresentMode() {
+    // default to immediate presentation mode
+    spmPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+
+    // go through all supported present modes
+    for (const auto &pmPresentMode : aPresentModes) {
+        // if the mailbox mode is available, use it (for tripple buffering)
+        if (pmPresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+            spmPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+            return;
+        // if the immediate mode is supported, use that (because some drivers don't support VK_PRESENT_MODE_FIFO_KHR correctly)
+        // NOTE: look into this
+        } else if (pmPresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
+            spmPresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+            // do not return, in case the mailbox mode is listed after this one in the array
+        }
+    }
+}
+
+
+// Select the swap chain extent to use.
+void GfxAPIVulkan::SelectSwapChainExtent() {
+    // uint32_max is set to width and height to signal matching to window dimensions
+    if (capsSurface.currentExtent.width == std::numeric_limits<uint32_t>::max()) {
+        sexExtent = capsSurface.currentExtent;
+        return;
+    }
+
+    // otherwise, try to fit the extent to the window size as much as possible
+    sexExtent.width = std::max(capsSurface.minImageExtent.width, std::min(capsSurface.maxImageExtent.width, _wndWindow->GetWidth()));
+    sexExtent.height = std::max(capsSurface.minImageExtent.height, std::min(capsSurface.maxImageExtent.height, _wndWindow->GetHeight()));
+}
+
+
+// Create the image views needed to acces swap chain images.
+void GfxAPIVulkan::CreateImageViews() {
+    // resize the array to the correct number of views
+    aimgvImageViews.resize(aimgImages.size());
+
+    // prepare the create info
+    VkImageViewCreateInfo ciImageView = {};
+    ciImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+
+    // use it as a 2D texture (could be 1D, 2D, 3D, cube map)
+    ciImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    // set the format
+    ciImageView.format = sfmtFormat.format;
+
+    // set the channel mappings, use defaults
+    // this allowes to bind various things to channels - swap channels around, 0, 1...
+    ciImageView.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    ciImageView.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    ciImageView.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    ciImageView.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+    // specify that thi should be a color target, without any layers or mip maps
+    ciImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    ciImageView.subresourceRange.baseMipLevel = 0;
+    ciImageView.subresourceRange.levelCount = 1;
+    ciImageView.subresourceRange.baseArrayLayer = 0;
+    ciImageView.subresourceRange.layerCount = 1;
+
+    // for each swap chain image, create the view
+    for (size_t iImage = 0; iImage < aimgImages.size(); ++iImage) {
+        // set the image handle
+        ciImageView.image = aimgImages[iImage];
+        // create the image view
+        if (vkCreateImageView(vkdevLogicalDevice, &ciImageView, nullptr, &aimgvImageViews[iImage]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create an image view");
+        }
+    }
+}
+
+
+// Destroy the image views.
+void GfxAPIVulkan::DestroyImageViews() {
+    // for each swap chain image, create the view
+    for (VkImageView &imgvView : aimgvImageViews) {
+        vkDestroyImageView(vkdevLogicalDevice, imgvView, nullptr);
+    }
 }
 
 
@@ -405,9 +668,11 @@ void GfxAPIVulkan::CreateLogicalDevice() {
     VkPhysicalDeviceFeatures deviceFeatures = {};
     ciLogicalDeviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
-    // no enabled extensions yet
-    // NOTE: these are device specific extension, will come back to them when doing swap_chain setup
-    ciLogicalDeviceCreateInfo.enabledExtensionCount = 0;    
+    // enable the required extensions
+    std::vector<const char*> astrRequiredExtensions;
+    GetRequiredDeviceExtensions(astrRequiredExtensions);
+    ciLogicalDeviceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(astrRequiredExtensions.size());
+    ciLogicalDeviceCreateInfo.ppEnabledExtensionNames = astrRequiredExtensions.data();
 
     // if validation layers are enabled
     if (Options::Get().ShouldUseValidationLayers()) {

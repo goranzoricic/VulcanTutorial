@@ -10,7 +10,8 @@ private:
                     iGraphicsQueueFamily(-1),
                     qGraphicsQueue(VK_NULL_HANDLE),
                     iPresentationQueueFamily(-1),
-                    qPresentationQueue(VK_NULL_HANDLE)
+                    qPresentationQueue(VK_NULL_HANDLE),
+                    swcSwapChain(VK_NULL_HANDLE)
     {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
@@ -26,10 +27,15 @@ private:
     void CreateWindow(uint32_t dimWidth, uint32_t dimHeight);
     // Create the Vulkan instance.
     void CreateInstance();
-    // Get the ulkan extensions required for the applciation to work.
-    void GetRequiredExtensions(std::vector<const char*> &requiredExtensions);
-    // Check if all required extensions are supported.
-    void CheckExtensionSupport(const std::vector<const char*> &requiredExtensions);
+
+    // Get the Vulkan instance extensions required for the applciation to work.
+    void GetRequiredInstanceExtensions(std::vector<const char*> &astrRequiredExtensions) const;
+    // Check if all required instance extensions are supported.
+    void CheckInstanceExtensionSupport(const std::vector<const char*> &astrRequiredExtensions) const;
+    // Get the Vulkan device extensions required for the applciation to work.
+    void GetRequiredDeviceExtensions(std::vector<const char*> &astrRequiredExtensions) const;
+    // Check if all required device extensions are supported.
+    void CheckDeviceExtensionSupport(const VkPhysicalDevice &device, const std::vector<const char*> &astrRequiredExtensions) const;
 
     // NOTE: In the Vulkan SDK, Config directory, there is a vk_layer_settings.txt file that explains how to configure the validation layers.
     // Set up the validation layers.
@@ -47,21 +53,58 @@ private:
     // Select the physical device (graphics card) to render on.
     void SelectPhysicalDevice();
     // Does the device support all required features?
-    bool IsDeviceSuitable(const VkPhysicalDevice &vkdevDevice) const;
-    
+    bool IsDeviceSuitable(const VkPhysicalDevice &vkdevDevice);
+
     // Find indices of queue families needed to support all application's features.
-    void FindQueueFamilies();
+    void FindQueueFamilies(const VkPhysicalDevice &device);
     // Do the queue families support all required features?
     bool IsQueueFamiliesSuitable() const;
+
+    // Collect information about swap chain feature support.
+    void QuerySwapChainSupport(const VkPhysicalDevice &device);
+    // Create the swap chain to use for presenting images.
+    void CreateSwapChain();
+    // Select the swap chain format to use.
+    void SelectSwapChainFormat();
+    // Select the presentation mode to use.
+    void SelectSwapChainPresentMode();
+    // Select the swap chain extent to use.
+    void SelectSwapChainExtent();
 
     // Create the logical device the application will use. Also creates the queues that commands will be submitted to.
     void CreateLogicalDevice();
 
+    // Create the image views needed to acces swap chain images.
+    void CreateImageViews();
+    // Destroy the image views.
+    void DestroyImageViews();
+
 private:
     // Handle to the vulkan instance.
     VkInstance vkiInstance;
+
     // Handle to the window surface that the render buffers will be presented to.
     VkSurfaceKHR sfcSurface;
+    // Capabilities of the drawing surface.
+    VkSurfaceCapabilitiesKHR capsSurface;
+
+    // Swap chain to use for rendering.
+    VkSwapchainKHR swcSwapChain;
+    // Drawing formats that the device support.
+    std::vector<VkSurfaceFormatKHR> aFormats;
+    // Present modes supported by the surface.
+    std::vector<VkPresentModeKHR> aPresentModes;
+    // Handles to swap chain images.
+    std::vector<VkImage> aimgImages;
+    // Views to swap chain images.
+    std::vector<VkImageView> aimgvImageViews;
+
+    // Swap chain format selected for use.
+    VkSurfaceFormatKHR sfmtFormat;
+    // Present mode selected for use
+    VkPresentModeKHR spmPresentMode;
+    // Extent (resolution) selected for the swap chain.
+    VkExtent2D sexExtent;
 
     // Handle to the debug callback.
     VkDebugReportCallbackEXT clbkValidation;
@@ -79,5 +122,6 @@ private:
     int iPresentationQueueFamily;
     // Handle to the queue to use for presentation.
     VkQueue qPresentationQueue;
+
 };
 
