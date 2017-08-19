@@ -60,8 +60,10 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // destroy the pipeline
+    vkDestroyPipeline(vkdevLogicalDevice, vkgpipePipeline, nullptr);
 	// destroy the pipeline layout
-	vkDestroyPipelineLayout(vkdevLogicalDevice, vkgpipePipelineLayout, nullptr);
+	vkDestroyPipelineLayout(vkdevLogicalDevice, vkplPipelineLayout, nullptr);
 	// destroy the render pass
 	vkDestroyRenderPass(vkdevLogicalDevice, vkpassRenderPass, nullptr);
 	// destroy the image views
@@ -777,9 +779,31 @@ void GfxAPIVulkan::CreateRenderPass() {
 // Create the graphics pipeline.
 void GfxAPIVulkan::CreateGraphicsPipeline() {
 
-    // Fragments and vertex shader modules.
+    // load the vertex module
+    VkShaderModule modVert = CreateShaderModule("d:/Work/VulcanTutorial/Shaders/vert.spv");
+    // describe the vertex shader stage
+    VkPipelineShaderStageCreateInfo ciShaderStageVert = {};
+    ciShaderStageVert.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    // this is the vertex shader stage
+    ciShaderStageVert.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    // bind the vertex module
+    ciShaderStageVert.pName = "main";
+    ciShaderStageVert.module = modVert;
+
+    // load the fragment module
     VkShaderModule modFrag = CreateShaderModule("d:/Work/VulcanTutorial/Shaders/frag.spv");
-    VkShaderModule modVert = CreateShaderModule("d:/Work/VulcanTutorial/Shaders/vert.spv");;
+    // describe the fragment shader stage
+    VkPipelineShaderStageCreateInfo ciShaderStageFrag = {};
+    ciShaderStageFrag.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    // this is the fragment shader stage
+    ciShaderStageFrag.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    // bind the vertex module
+    ciShaderStageFrag.pName = "main";
+    ciShaderStageFrag.module = modFrag;
+
+    // create the array of shader stages to bind to the pipeline
+    VkPipelineShaderStageCreateInfo aciShaderStages[] = { ciShaderStageVert, ciShaderStageFrag };
+
 
     // describe the vertex program inputs
 	VkPipelineVertexInputStateCreateInfo ciVertexInput = {};
@@ -793,10 +817,12 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 
 	// describe the topology and if primitive restart will be used
 	VkPipelineInputAssemblyStateCreateInfo ciInputAssembly;
+    ciInputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	// triangle list will be used
 	ciInputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	// no primitive restart (if this is set to TRUE, index of 0xFFFF/0xFFFFFFFF means that the next index starts a new primitive)
 	ciInputAssembly.primitiveRestartEnable = VK_FALSE;
+    ciInputAssembly.flags = 0;
 
 	// describe the rendering viewport
 	VkViewport vpViewport = {};
@@ -827,6 +853,7 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 
 	// describe the rasterizer - how the vertex info is converted into fragments that will be passed to fragment programs
 	VkPipelineRasterizationStateCreateInfo ciRasterizationState = {};
+    ciRasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	// fragments should be discarded if they are not between near and far planes
 	ciRasterizationState.depthClampEnable = VK_FALSE;
 	// geometry should be rasterized (FALSE means no fragments will be produced)
@@ -891,20 +918,49 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	ciColorBlendState.blendConstants[3] = 0.0f;
 
 
-	// finally, describe the graphics pipeline
-	VkPipelineLayoutCreateInfo ciPipeline = {};
-	ciPipeline.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	ciPipeline.setLayoutCount = 0;
-	ciPipeline.pSetLayouts = nullptr;
-	ciPipeline.pushConstantRangeCount = 0;
-	ciPipeline.pPushConstantRanges = 0;
+	// describe the graphics pipeline layout
+	VkPipelineLayoutCreateInfo ciPipelineLayout = {};
+	ciPipelineLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	ciPipelineLayout.setLayoutCount = 0;
+	ciPipelineLayout.pSetLayouts = nullptr;
+	ciPipelineLayout.pushConstantRangeCount = 0;
+	ciPipelineLayout.pPushConstantRanges = 0;
 
 	// create the pipeline
-	if (vkCreatePipelineLayout(vkdevLogicalDevice, &ciPipeline, nullptr, &vkgpipePipelineLayout) != VK_SUCCESS) {
+	if (vkCreatePipelineLayout(vkdevLogicalDevice, &ciPipelineLayout, nullptr, &vkplPipelineLayout) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create the pipeline layout!");
 	}
 
     
+    // finally, describe the graphics pipeline itself
+    VkGraphicsPipelineCreateInfo ciGraphicsPipeline = {};
+    ciGraphicsPipeline.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    // bind the shader stages
+    ciGraphicsPipeline.stageCount = 2;
+    ciGraphicsPipeline.pStages = aciShaderStages;
+    // bind the rest of prepared configurations
+    ciGraphicsPipeline.pVertexInputState = &ciVertexInput;
+    ciGraphicsPipeline.pInputAssemblyState = &ciInputAssembly;
+    ciGraphicsPipeline.pViewportState = &ciViewportState;
+    ciGraphicsPipeline.pRasterizationState = &ciRasterizationState;
+    ciGraphicsPipeline.pMultisampleState = &ciMultisampling;
+    ciGraphicsPipeline.pDepthStencilState = nullptr;
+    ciGraphicsPipeline.pColorBlendState = &ciColorBlendState;
+    ciGraphicsPipeline.pDynamicState = nullptr;
+    // set the pipeline layout
+    ciGraphicsPipeline.layout = vkplPipelineLayout;
+    // set up the render pass
+    ciGraphicsPipeline.renderPass = vkpassRenderPass;
+    ciGraphicsPipeline.subpass = 0;
+    // this pipeline doesn't derive from another pipeline (could be done as an optimization)
+    ciGraphicsPipeline.basePipelineHandle = VK_NULL_HANDLE;
+    ciGraphicsPipeline.basePipelineIndex = -1;
+
+    // create the graphics pipeline
+    if (vkCreateGraphicsPipelines(vkdevLogicalDevice, VK_NULL_HANDLE, 1, &ciGraphicsPipeline, nullptr, &vkgpipePipeline) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the graphics pipeline");
+    }
+
     // destroy shader modules - they are a part of the graphics pipeline
     vkDestroyShaderModule(vkdevLogicalDevice, modFrag, nullptr);
     vkDestroyShaderModule(vkdevLogicalDevice, modVert, nullptr);

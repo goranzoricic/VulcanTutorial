@@ -137,7 +137,10 @@ private:
 	// Render pass applied to render objects.
 	VkRenderPass vkpassRenderPass;
 	// Layout of the graphics pipeline.
-	VkPipelineLayout vkgpipePipelineLayout;
+	VkPipelineLayout vkplPipelineLayout;
+    // Graphics pipeline.
+    VkPipeline vkgpipePipeline;
+
 
 };
 
