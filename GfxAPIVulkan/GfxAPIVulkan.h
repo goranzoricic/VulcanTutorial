@@ -79,6 +79,12 @@ private:
     // Destroy the image views.
     void DestroyImageViews();
 
+	// Create the render pass.
+	void CreateRenderPass();
+
+	// Create the graphics pipeline.
+	void CreateGraphicsPipeline();
+
 private:
     // Handle to the vulkan instance.
     VkInstance vkiInstance;
@@ -122,6 +128,11 @@ private:
     int iPresentationQueueFamily;
     // Handle to the queue to use for presentation.
     VkQueue qPresentationQueue;
+
+	// Render pass applied to render objects.
+	VkRenderPass vkpassRenderPass;
+	// Layout of the graphics pipeline.
+	VkPipelineLayout vkpipePipelineLayout;
 
 };
 

@@ -49,6 +49,10 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateSwapChain();
     // create image views
     CreateImageViews();
+	// create the render pass
+	CreateRenderPass();
+	// create the graphics pipeline
+	CreateGraphicsPipeline();
 
     return true;
 }
@@ -56,7 +60,9 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
-    // destroy the image views
+	// destroy the render pass
+	vkDestroyRenderPass(vkdevLogicalDevice, vkpassRenderPass, nullptr);
+	// destroy the image views
     DestroyImageViews();
     // destroy the swap chain
     vkDestroySwapchainKHR(vkdevLogicalDevice, swcSwapChain, nullptr);
@@ -691,4 +697,60 @@ void GfxAPIVulkan::CreateLogicalDevice() {
 
     // retreive the handle to the graphics queue
     vkGetDeviceQueue(vkdevLogicalDevice, iGraphicsQueueFamily, 0, &qGraphicsQueue);
+}
+
+
+// Create the render pass.
+void GfxAPIVulkan::CreateRenderPass() {
+	// describe the attachment used for the render pass
+	VkAttachmentDescription descColorAttachment = {};
+	// color format is the same as the one in the swap chain
+	descColorAttachment.format = sfmtFormat.format;
+	// no multisampling, use one sample
+	descColorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	// the buffer should be cleared to a constant at the start
+	descColorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	// rendered contents need to be stored so that thay can be used afterwards
+	descColorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	// the initial layout of the image is not important
+	descColorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	// final layout needs to be presented in the swap chain
+	descColorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	// describe the attachment reference
+	VkAttachmentReference refAttachment = {};
+	// only one attachment, bind to input 0
+	refAttachment.attachment = 0;
+	// the attachment will function as a color buffer
+	refAttachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	// describe the subpass needed
+	VkSubpassDescription descSubPass = {};
+	// this is a graphics subpass, not a compute one
+	descSubPass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	// bind the attachment to this render pass
+	descSubPass.colorAttachmentCount = 1;
+	descSubPass.pColorAttachments = &refAttachment;
+
+	// description of the render pass to create
+	VkRenderPassCreateInfo ciRenderPass = {};
+	ciRenderPass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	// bind the color attachment
+	ciRenderPass.attachmentCount = 1;
+	ciRenderPass.pAttachments = &descColorAttachment;
+	// bind the subpass
+	ciRenderPass.subpassCount = 1;
+	ciRenderPass.pSubpasses = &descSubPass;
+
+	// finally, create the render pass
+	if (vkCreateRenderPass(vkdevLogicalDevice, &ciRenderPass, nullptr, &vkpassRenderPass) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create the render pass");
+	}
+
+}
+
+
+// Create the graphics pipeline.
+void GfxAPIVulkan::CreateGraphicsPipeline() {
+	
 }
