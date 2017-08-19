@@ -60,6 +60,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+	// destroy the pipeline layout
+	vkDestroyPipelineLayout(vkdevLogicalDevice, vkgpipePipelineLayout, nullptr);
 	// destroy the render pass
 	vkDestroyRenderPass(vkdevLogicalDevice, vkpassRenderPass, nullptr);
 	// destroy the image views
@@ -752,5 +754,126 @@ void GfxAPIVulkan::CreateRenderPass() {
 
 // Create the graphics pipeline.
 void GfxAPIVulkan::CreateGraphicsPipeline() {
-	
+	// describe the vertex program inputs
+	VkPipelineVertexInputStateCreateInfo ciVertexInput = {};
+	ciVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	// since all vertexes info is hardcode in the shader, there are no bindings
+	ciVertexInput.vertexBindingDescriptionCount = 0;
+	ciVertexInput.pVertexBindingDescriptions = nullptr;
+	// also, there are no attributes
+	ciVertexInput.vertexAttributeDescriptionCount = 0;
+	ciVertexInput.pVertexAttributeDescriptions = nullptr;
+
+	// describe the topology and if primitive restart will be used
+	VkPipelineInputAssemblyStateCreateInfo ciInputAssembly;
+	// triangle list will be used
+	ciInputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	// no primitive restart (if this is set to TRUE, index of 0xFFFF/0xFFFFFFFF means that the next index starts a new primitive)
+	ciInputAssembly.primitiveRestartEnable = VK_FALSE;
+
+	// describe the rendering viewport
+	VkViewport vpViewport = {};
+	// viweport coves the full screen
+	vpViewport.x = 0.0f;
+	vpViewport.y = 0.0f;
+	vpViewport.width = (float) sexExtent.width;
+	vpViewport.height = (float) sexExtent.height;
+	// full range of depths
+	vpViewport.minDepth = 0.0f;
+	vpViewport.maxDepth = 1.0f;
+
+	// set up the scissor to also cover the full screen
+	VkRect2D rectScissor = {};
+	rectScissor.offset = { 0, 0 };
+	rectScissor.extent = sexExtent;
+
+	// describe the viewport state for the pipeline
+	VkPipelineViewportStateCreateInfo ciViewportState = {};
+	ciViewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	// bind the viewport description (can be multiple in some cases)
+	ciViewportState.viewportCount = 1;
+	ciViewportState.pViewports = &vpViewport;
+	// bind the scissor (also, can be multiple)
+	ciViewportState.scissorCount = 1;
+	ciViewportState.pScissors = &rectScissor;
+
+
+	// describe the rasterizer - how the vertex info is converted into fragments that will be passed to fragment programs
+	VkPipelineRasterizationStateCreateInfo ciRasterizationState = {};
+	// fragments should be discarded if they are not between near and far planes
+	ciRasterizationState.depthClampEnable = VK_FALSE;
+	// geometry should be rasterized (FALSE means no fragments will be produced)
+	ciRasterizationState.rasterizerDiscardEnable = VK_FALSE;
+	// we want polygons to be filled with fragments (as opposed to just points or lines)
+	ciRasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+	// thickness of lines, in number of fragments
+	ciRasterizationState.lineWidth = 1.0f;
+	// enable back face culling
+	ciRasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+	// forward facing faces use clockwise vetex winding
+	ciRasterizationState.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	// no depth bias
+	ciRasterizationState.depthBiasEnable = VK_FALSE;
+	ciRasterizationState.depthBiasConstantFactor = 0.0f;
+	ciRasterizationState.depthBiasClamp = 0.0f;
+	ciRasterizationState.depthBiasSlopeFactor = 0.0f;
+
+
+	// describe the multisampling configuration
+	VkPipelineMultisampleStateCreateInfo ciMultisampling = {};
+	ciMultisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	// multisampling is disabled
+	ciMultisampling.sampleShadingEnable = VK_FALSE;
+	// set the rest of multisampling values to the simplest
+	// NOTE: they are not described in the tutorial, so no comments for them at this point
+	ciMultisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	ciMultisampling.minSampleShading = 1.0f;
+	ciMultisampling.pSampleMask = nullptr;
+	ciMultisampling.alphaToCoverageEnable = VK_FALSE;
+	ciMultisampling.alphaToOneEnable = VK_FALSE;
+
+
+	// describe how the color output of a fragment program is blended with the frame buffer
+	VkPipelineColorBlendAttachmentState descColorBlendState = {};
+	// fragments wi write RGBA channels
+	descColorBlendState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	// blending is disabled, fragment color will overwrite the framebuffer value
+	descColorBlendState.blendEnable = VK_FALSE;
+	// setting the default color blend params
+	descColorBlendState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	descColorBlendState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	descColorBlendState.colorBlendOp = VK_BLEND_OP_ADD;
+	descColorBlendState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	descColorBlendState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	descColorBlendState.alphaBlendOp = VK_BLEND_OP_ADD;
+
+	// describe the color blending state of the pipeline (will include the reference to the blend state attachment)
+	VkPipelineColorBlendStateCreateInfo ciColorBlendState = {};
+	ciColorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	// disable color blending
+	ciColorBlendState.logicOpEnable = VK_FALSE;
+	// set 'copy' as the bitwase operation
+	ciColorBlendState.logicOp = VK_LOGIC_OP_COPY;
+	// bind the color blend attachment
+	ciColorBlendState.attachmentCount = 1;
+	ciColorBlendState.pAttachments = &descColorBlendState;
+	// set blending constants
+	ciColorBlendState.blendConstants[0] = 0.0f;
+	ciColorBlendState.blendConstants[1] = 0.0f;
+	ciColorBlendState.blendConstants[2] = 0.0f;
+	ciColorBlendState.blendConstants[3] = 0.0f;
+
+
+	// finally, describe the graphics pipeline
+	VkPipelineLayoutCreateInfo ciPipeline = {};
+	ciPipeline.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	ciPipeline.setLayoutCount = 0;
+	ciPipeline.pSetLayouts = nullptr;
+	ciPipeline.pushConstantRangeCount = 0;
+	ciPipeline.pPushConstantRanges = 0;
+
+	// create the pipeline
+	if (vkCreatePipelineLayout(vkdevLogicalDevice, &ciPipeline, nullptr, &vkgpipePipelineLayout) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create the pipeline layout!");
+	}
 }
