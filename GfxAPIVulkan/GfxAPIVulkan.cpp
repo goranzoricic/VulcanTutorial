@@ -702,6 +702,28 @@ void GfxAPIVulkan::CreateLogicalDevice() {
 }
 
 
+// Load shader code and create the module.
+VkShaderModule GfxAPIVulkan::CreateShaderModule(const std::string &strFilename) {
+    // NOTE: This needs to be recoded to support relative paths and proper resource management
+    auto achShaderCode = LoadShader(strFilename);
+
+    // describe the shader module
+    VkShaderModuleCreateInfo ciShaderModule = {};
+    ciShaderModule.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    // bind the shader binary code
+    ciShaderModule.codeSize = achShaderCode.size();
+    ciShaderModule.pCode = reinterpret_cast<const uint32_t*> (achShaderCode.data());
+
+    // createh the shader module
+    VkShaderModule modShaderModule;
+    if (vkCreateShaderModule(vkdevLogicalDevice, &ciShaderModule, nullptr, &modShaderModule) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create a shader module");
+    }
+
+    return modShaderModule;
+}
+
+
 // Create the render pass.
 void GfxAPIVulkan::CreateRenderPass() {
 	// describe the attachment used for the render pass
@@ -754,7 +776,12 @@ void GfxAPIVulkan::CreateRenderPass() {
 
 // Create the graphics pipeline.
 void GfxAPIVulkan::CreateGraphicsPipeline() {
-	// describe the vertex program inputs
+
+    // Fragments and vertex shader modules.
+    VkShaderModule modFrag = CreateShaderModule("d:/Work/VulcanTutorial/Shaders/frag.spv");
+    VkShaderModule modVert = CreateShaderModule("d:/Work/VulcanTutorial/Shaders/vert.spv");;
+
+    // describe the vertex program inputs
 	VkPipelineVertexInputStateCreateInfo ciVertexInput = {};
 	ciVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	// since all vertexes info is hardcode in the shader, there are no bindings
@@ -876,4 +903,35 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	if (vkCreatePipelineLayout(vkdevLogicalDevice, &ciPipeline, nullptr, &vkgpipePipelineLayout) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create the pipeline layout!");
 	}
+
+    
+    // destroy shader modules - they are a part of the graphics pipeline
+    vkDestroyShaderModule(vkdevLogicalDevice, modFrag, nullptr);
+    vkDestroyShaderModule(vkdevLogicalDevice, modVert, nullptr);
 }
+
+
+// Load shader bytecode from a file.
+std::vector<char> GfxAPIVulkan::LoadShader(const std::string &filename) {
+    // open the file and position at the end
+    std::ifstream fsFile(filename, std::ios::ate | std::ios::binary);
+
+    // if the file failed to open, throw an error
+    if (!fsFile.is_open()) {
+        throw std::runtime_error("Failed to open file");
+    }
+
+    // get the file size and preallocate the read buffer
+    size_t ctFileSize = fsFile.tellg();
+    std::vector<char> achReadBuffer(ctFileSize);
+
+    // rewind to the beginning and read the content into the buffer
+    fsFile.seekg(0);
+    fsFile.read(achReadBuffer.data(), ctFileSize);
+
+    // close the file
+    fsFile.close();
+
+    return achReadBuffer;
+}
+

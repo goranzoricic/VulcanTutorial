@@ -79,11 +79,16 @@ private:
     // Destroy the image views.
     void DestroyImageViews();
 
-	// Create the render pass.
-	void CreateRenderPass();
+    // Load shaders and create shader modules.
+    VkShaderModule CreateShaderModule(const std::string &strFilename);
 
+    // Create the render pass.
+	void CreateRenderPass();
 	// Create the graphics pipeline.
 	void CreateGraphicsPipeline();
+
+    // Load shader bytecode from a file.
+    std::vector<char> LoadShader(const std::string &filename);
 
 private:
     // Handle to the vulkan instance.
