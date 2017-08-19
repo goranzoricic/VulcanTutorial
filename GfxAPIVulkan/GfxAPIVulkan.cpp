@@ -49,6 +49,10 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateSwapChain();
     // create image views
     CreateImageViews();
+	// create the render pass
+	CreateRenderPass();
+	// create the graphics pipeline
+	CreateGraphicsPipeline();
 
     return true;
 }
@@ -56,7 +60,13 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
-    // destroy the image views
+    // destroy the pipeline
+    vkDestroyPipeline(vkdevLogicalDevice, vkgpipePipeline, nullptr);
+	// destroy the pipeline layout
+	vkDestroyPipelineLayout(vkdevLogicalDevice, vkplPipelineLayout, nullptr);
+	// destroy the render pass
+	vkDestroyRenderPass(vkdevLogicalDevice, vkpassRenderPass, nullptr);
+	// destroy the image views
     DestroyImageViews();
     // destroy the swap chain
     vkDestroySwapchainKHR(vkdevLogicalDevice, swcSwapChain, nullptr);
@@ -692,3 +702,292 @@ void GfxAPIVulkan::CreateLogicalDevice() {
     // retreive the handle to the graphics queue
     vkGetDeviceQueue(vkdevLogicalDevice, iGraphicsQueueFamily, 0, &qGraphicsQueue);
 }
+
+
+// Load shader code and create the module.
+VkShaderModule GfxAPIVulkan::CreateShaderModule(const std::string &strFilename) {
+    // NOTE: This needs to be recoded to support relative paths and proper resource management
+    auto achShaderCode = LoadShader(strFilename);
+
+    // describe the shader module
+    VkShaderModuleCreateInfo ciShaderModule = {};
+    ciShaderModule.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    // bind the shader binary code
+    ciShaderModule.codeSize = achShaderCode.size();
+    ciShaderModule.pCode = reinterpret_cast<const uint32_t*> (achShaderCode.data());
+
+    // createh the shader module
+    VkShaderModule modShaderModule;
+    if (vkCreateShaderModule(vkdevLogicalDevice, &ciShaderModule, nullptr, &modShaderModule) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create a shader module");
+    }
+
+    return modShaderModule;
+}
+
+
+// Create the render pass.
+void GfxAPIVulkan::CreateRenderPass() {
+	// describe the attachment used for the render pass
+	VkAttachmentDescription descColorAttachment = {};
+	// color format is the same as the one in the swap chain
+	descColorAttachment.format = sfmtFormat.format;
+	// no multisampling, use one sample
+	descColorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+	// the buffer should be cleared to a constant at the start
+	descColorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+	// rendered contents need to be stored so that thay can be used afterwards
+	descColorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+	// the initial layout of the image is not important
+	descColorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	// final layout needs to be presented in the swap chain
+	descColorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+	// describe the attachment reference
+	VkAttachmentReference refAttachment = {};
+	// only one attachment, bind to input 0
+	refAttachment.attachment = 0;
+	// the attachment will function as a color buffer
+	refAttachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+	// describe the subpass needed
+	VkSubpassDescription descSubPass = {};
+	// this is a graphics subpass, not a compute one
+	descSubPass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+	// bind the attachment to this render pass
+	descSubPass.colorAttachmentCount = 1;
+	descSubPass.pColorAttachments = &refAttachment;
+
+	// description of the render pass to create
+	VkRenderPassCreateInfo ciRenderPass = {};
+	ciRenderPass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+	// bind the color attachment
+	ciRenderPass.attachmentCount = 1;
+	ciRenderPass.pAttachments = &descColorAttachment;
+	// bind the subpass
+	ciRenderPass.subpassCount = 1;
+	ciRenderPass.pSubpasses = &descSubPass;
+
+	// finally, create the render pass
+	if (vkCreateRenderPass(vkdevLogicalDevice, &ciRenderPass, nullptr, &vkpassRenderPass) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create the render pass");
+	}
+
+}
+
+
+// Create the graphics pipeline.
+void GfxAPIVulkan::CreateGraphicsPipeline() {
+
+    // load the vertex module
+    VkShaderModule modVert = CreateShaderModule("d:/Work/VulcanTutorial/Shaders/vert.spv");
+    // describe the vertex shader stage
+    VkPipelineShaderStageCreateInfo ciShaderStageVert = {};
+    ciShaderStageVert.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    // this is the vertex shader stage
+    ciShaderStageVert.stage = VK_SHADER_STAGE_VERTEX_BIT;
+    // bind the vertex module
+    ciShaderStageVert.pName = "main";
+    ciShaderStageVert.module = modVert;
+
+    // load the fragment module
+    VkShaderModule modFrag = CreateShaderModule("d:/Work/VulcanTutorial/Shaders/frag.spv");
+    // describe the fragment shader stage
+    VkPipelineShaderStageCreateInfo ciShaderStageFrag = {};
+    ciShaderStageFrag.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    // this is the fragment shader stage
+    ciShaderStageFrag.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    // bind the vertex module
+    ciShaderStageFrag.pName = "main";
+    ciShaderStageFrag.module = modFrag;
+
+    // create the array of shader stages to bind to the pipeline
+    VkPipelineShaderStageCreateInfo aciShaderStages[] = { ciShaderStageVert, ciShaderStageFrag };
+
+
+    // describe the vertex program inputs
+	VkPipelineVertexInputStateCreateInfo ciVertexInput = {};
+	ciVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	// since all vertexes info is hardcode in the shader, there are no bindings
+	ciVertexInput.vertexBindingDescriptionCount = 0;
+	ciVertexInput.pVertexBindingDescriptions = nullptr;
+	// also, there are no attributes
+	ciVertexInput.vertexAttributeDescriptionCount = 0;
+	ciVertexInput.pVertexAttributeDescriptions = nullptr;
+
+	// describe the topology and if primitive restart will be used
+	VkPipelineInputAssemblyStateCreateInfo ciInputAssembly;
+    ciInputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	// triangle list will be used
+	ciInputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	// no primitive restart (if this is set to TRUE, index of 0xFFFF/0xFFFFFFFF means that the next index starts a new primitive)
+	ciInputAssembly.primitiveRestartEnable = VK_FALSE;
+    ciInputAssembly.flags = 0;
+
+	// describe the rendering viewport
+	VkViewport vpViewport = {};
+	// viweport coves the full screen
+	vpViewport.x = 0.0f;
+	vpViewport.y = 0.0f;
+	vpViewport.width = (float) sexExtent.width;
+	vpViewport.height = (float) sexExtent.height;
+	// full range of depths
+	vpViewport.minDepth = 0.0f;
+	vpViewport.maxDepth = 1.0f;
+
+	// set up the scissor to also cover the full screen
+	VkRect2D rectScissor = {};
+	rectScissor.offset = { 0, 0 };
+	rectScissor.extent = sexExtent;
+
+	// describe the viewport state for the pipeline
+	VkPipelineViewportStateCreateInfo ciViewportState = {};
+	ciViewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	// bind the viewport description (can be multiple in some cases)
+	ciViewportState.viewportCount = 1;
+	ciViewportState.pViewports = &vpViewport;
+	// bind the scissor (also, can be multiple)
+	ciViewportState.scissorCount = 1;
+	ciViewportState.pScissors = &rectScissor;
+
+
+	// describe the rasterizer - how the vertex info is converted into fragments that will be passed to fragment programs
+	VkPipelineRasterizationStateCreateInfo ciRasterizationState = {};
+    ciRasterizationState.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	// fragments should be discarded if they are not between near and far planes
+	ciRasterizationState.depthClampEnable = VK_FALSE;
+	// geometry should be rasterized (FALSE means no fragments will be produced)
+	ciRasterizationState.rasterizerDiscardEnable = VK_FALSE;
+	// we want polygons to be filled with fragments (as opposed to just points or lines)
+	ciRasterizationState.polygonMode = VK_POLYGON_MODE_FILL;
+	// thickness of lines, in number of fragments
+	ciRasterizationState.lineWidth = 1.0f;
+	// enable back face culling
+	ciRasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
+	// forward facing faces use clockwise vetex winding
+	ciRasterizationState.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	// no depth bias
+	ciRasterizationState.depthBiasEnable = VK_FALSE;
+	ciRasterizationState.depthBiasConstantFactor = 0.0f;
+	ciRasterizationState.depthBiasClamp = 0.0f;
+	ciRasterizationState.depthBiasSlopeFactor = 0.0f;
+
+
+	// describe the multisampling configuration
+	VkPipelineMultisampleStateCreateInfo ciMultisampling = {};
+	ciMultisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	// multisampling is disabled
+	ciMultisampling.sampleShadingEnable = VK_FALSE;
+	// set the rest of multisampling values to the simplest
+	// NOTE: they are not described in the tutorial, so no comments for them at this point
+	ciMultisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	ciMultisampling.minSampleShading = 1.0f;
+	ciMultisampling.pSampleMask = nullptr;
+	ciMultisampling.alphaToCoverageEnable = VK_FALSE;
+	ciMultisampling.alphaToOneEnable = VK_FALSE;
+
+
+	// describe how the color output of a fragment program is blended with the frame buffer
+	VkPipelineColorBlendAttachmentState descColorBlendState = {};
+	// fragments wi write RGBA channels
+	descColorBlendState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	// blending is disabled, fragment color will overwrite the framebuffer value
+	descColorBlendState.blendEnable = VK_FALSE;
+	// setting the default color blend params
+	descColorBlendState.srcColorBlendFactor = VK_BLEND_FACTOR_ONE;
+	descColorBlendState.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;
+	descColorBlendState.colorBlendOp = VK_BLEND_OP_ADD;
+	descColorBlendState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+	descColorBlendState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	descColorBlendState.alphaBlendOp = VK_BLEND_OP_ADD;
+
+	// describe the color blending state of the pipeline (will include the reference to the blend state attachment)
+	VkPipelineColorBlendStateCreateInfo ciColorBlendState = {};
+	ciColorBlendState.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	// disable color blending
+	ciColorBlendState.logicOpEnable = VK_FALSE;
+	// set 'copy' as the bitwase operation
+	ciColorBlendState.logicOp = VK_LOGIC_OP_COPY;
+	// bind the color blend attachment
+	ciColorBlendState.attachmentCount = 1;
+	ciColorBlendState.pAttachments = &descColorBlendState;
+	// set blending constants
+	ciColorBlendState.blendConstants[0] = 0.0f;
+	ciColorBlendState.blendConstants[1] = 0.0f;
+	ciColorBlendState.blendConstants[2] = 0.0f;
+	ciColorBlendState.blendConstants[3] = 0.0f;
+
+
+	// describe the graphics pipeline layout
+	VkPipelineLayoutCreateInfo ciPipelineLayout = {};
+	ciPipelineLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	ciPipelineLayout.setLayoutCount = 0;
+	ciPipelineLayout.pSetLayouts = nullptr;
+	ciPipelineLayout.pushConstantRangeCount = 0;
+	ciPipelineLayout.pPushConstantRanges = 0;
+
+	// create the pipeline
+	if (vkCreatePipelineLayout(vkdevLogicalDevice, &ciPipelineLayout, nullptr, &vkplPipelineLayout) != VK_SUCCESS) {
+		throw std::runtime_error("Failed to create the pipeline layout!");
+	}
+
+    
+    // finally, describe the graphics pipeline itself
+    VkGraphicsPipelineCreateInfo ciGraphicsPipeline = {};
+    ciGraphicsPipeline.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    // bind the shader stages
+    ciGraphicsPipeline.stageCount = 2;
+    ciGraphicsPipeline.pStages = aciShaderStages;
+    // bind the rest of prepared configurations
+    ciGraphicsPipeline.pVertexInputState = &ciVertexInput;
+    ciGraphicsPipeline.pInputAssemblyState = &ciInputAssembly;
+    ciGraphicsPipeline.pViewportState = &ciViewportState;
+    ciGraphicsPipeline.pRasterizationState = &ciRasterizationState;
+    ciGraphicsPipeline.pMultisampleState = &ciMultisampling;
+    ciGraphicsPipeline.pDepthStencilState = nullptr;
+    ciGraphicsPipeline.pColorBlendState = &ciColorBlendState;
+    ciGraphicsPipeline.pDynamicState = nullptr;
+    // set the pipeline layout
+    ciGraphicsPipeline.layout = vkplPipelineLayout;
+    // set up the render pass
+    ciGraphicsPipeline.renderPass = vkpassRenderPass;
+    ciGraphicsPipeline.subpass = 0;
+    // this pipeline doesn't derive from another pipeline (could be done as an optimization)
+    ciGraphicsPipeline.basePipelineHandle = VK_NULL_HANDLE;
+    ciGraphicsPipeline.basePipelineIndex = -1;
+
+    // create the graphics pipeline
+    if (vkCreateGraphicsPipelines(vkdevLogicalDevice, VK_NULL_HANDLE, 1, &ciGraphicsPipeline, nullptr, &vkgpipePipeline) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the graphics pipeline");
+    }
+
+    // destroy shader modules - they are a part of the graphics pipeline
+    vkDestroyShaderModule(vkdevLogicalDevice, modFrag, nullptr);
+    vkDestroyShaderModule(vkdevLogicalDevice, modVert, nullptr);
+}
+
+
+// Load shader bytecode from a file.
+std::vector<char> GfxAPIVulkan::LoadShader(const std::string &filename) {
+    // open the file and position at the end
+    std::ifstream fsFile(filename, std::ios::ate | std::ios::binary);
+
+    // if the file failed to open, throw an error
+    if (!fsFile.is_open()) {
+        throw std::runtime_error("Failed to open file");
+    }
+
+    // get the file size and preallocate the read buffer
+    size_t ctFileSize = fsFile.tellg();
+    std::vector<char> achReadBuffer(ctFileSize);
+
+    // rewind to the beginning and read the content into the buffer
+    fsFile.seekg(0);
+    fsFile.read(achReadBuffer.data(), ctFileSize);
+
+    // close the file
+    fsFile.close();
+
+    return achReadBuffer;
+}
+

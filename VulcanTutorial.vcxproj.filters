@@ -22,6 +22,9 @@
     <Filter Include="Source Files\GfxAPINull">
       <UniqueIdentifier>{0fc48dd5-fb4f-4138-987a-a89581f431e7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{4561bff4-e7f0-4846-a354-e6c60311dc6a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VulcanTest.cpp">
@@ -68,5 +71,19 @@
     <ClInclude Include="GfxAPI\Window.h">
       <Filter>Source Files\GfxAPI</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Shaders\shader.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\shader.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\frag.spv">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\vert.spv">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>
