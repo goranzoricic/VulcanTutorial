@@ -96,6 +96,8 @@ private:
 
     // Create the command pool.
     void CreateCommandPool();
+    // Create the command buffers.
+    void CreateCommandBuffers();
 
 private:
     // Handle to the vulkan instance.
@@ -153,5 +155,7 @@ private:
 
     // command pool that will hold command buffers
     VkCommandPool vkhCommandPool;
+    // command buffers to post the commands to
+    std::vector<VkCommandBuffer> acbufCommandBuffers;
 };
 

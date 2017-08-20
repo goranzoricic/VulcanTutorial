@@ -57,6 +57,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateFramebuffers();
     // create the command pool
     CreateCommandPool();
+    // allocate command buffers
+    CreateCommandBuffers();
 
     return true;
 }
@@ -64,6 +66,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // delete the command buffers
+    vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool,(uint32_t) acbufCommandBuffers.size(), acbufCommandBuffers.data());
     // destoy the command pool
     vkDestroyCommandPool(vkdevLogicalDevice, vkhCommandPool, nullptr);
     // destroy the framebuffers
@@ -1052,7 +1056,29 @@ void GfxAPIVulkan::CreateCommandPool() {
     // clear all flags
     ciCommandPool.flags = 0;
 
+    // create the command pool
     if (vkCreateCommandPool(vkdevLogicalDevice, &ciCommandPool, nullptr, &vkhCommandPool) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to create a framebuffer");
+        throw std::runtime_error("Failed to create the command pool");
+    }
+}
+
+// Create the command buffers.
+void GfxAPIVulkan::CreateCommandBuffers() {
+    // one command buffer is needed per framebuffer
+    acbufCommandBuffers.resize(atgtFramebuffers.size());
+
+    // describe the allocation of command buffers - all will be allocated with one call
+    VkCommandBufferAllocateInfo ciAllocateBuffers;
+    ciAllocateBuffers.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    // bind the command pool
+    ciAllocateBuffers.commandPool = vkhCommandPool;
+    // these are rimary buffers - can be directly submitted for execution
+    ciAllocateBuffers.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    // set the number of buffers
+    ciAllocateBuffers.commandBufferCount = (uint32_t) acbufCommandBuffers.size();
+
+    // allocate the command buffers
+    if (vkAllocateCommandBuffers(vkdevLogicalDevice, &ciAllocateBuffers, acbufCommandBuffers.data()) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create allocate command buffers");
     }
 }
