@@ -55,6 +55,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 	CreateGraphicsPipeline();
     // create the framebuffers
     CreateFramebuffers();
+    // create the command pool
+    CreateCommandPool();
 
     return true;
 }
@@ -62,6 +64,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // destoy the command pool
+    vkDestroyCommandPool(vkdevLogicalDevice, vkhCommandPool, nullptr);
     // destroy the framebuffers
     DestroyFramebuffers();
     // destroy the pipeline
@@ -1034,5 +1038,21 @@ void GfxAPIVulkan::CreateFramebuffers() {
 void GfxAPIVulkan::DestroyFramebuffers() {
     for (VkFramebuffer tgtFramebuffer : atgtFramebuffers) {
         vkDestroyFramebuffer(vkdevLogicalDevice, tgtFramebuffer, nullptr);
+    }
+}
+
+
+// Create the command pool.
+void GfxAPIVulkan::CreateCommandPool() {
+    // describe the command pool
+    VkCommandPoolCreateInfo ciCommandPool = {};
+    ciCommandPool.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    // bind the graphics queue family to the command pool
+    ciCommandPool.queueFamilyIndex = iGraphicsQueueFamily;
+    // clear all flags
+    ciCommandPool.flags = 0;
+
+    if (vkCreateCommandPool(vkdevLogicalDevice, &ciCommandPool, nullptr, &vkhCommandPool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create a framebuffer");
     }
 }

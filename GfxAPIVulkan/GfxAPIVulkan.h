@@ -94,6 +94,8 @@ private:
     // Destroy the framebuffers.
     void DestroyFramebuffers();
 
+    // Create the command pool.
+    void CreateCommandPool();
 
 private:
     // Handle to the vulkan instance.
@@ -148,5 +150,8 @@ private:
 
     // framebuffers used to draw
     std::vector<VkFramebuffer> atgtFramebuffers;
+
+    // command pool that will hold command buffers
+    VkCommandPool vkhCommandPool;
 };
 
