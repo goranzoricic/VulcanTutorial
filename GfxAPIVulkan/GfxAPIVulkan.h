@@ -81,14 +81,19 @@ private:
 
     // Load shaders and create shader modules.
     VkShaderModule CreateShaderModule(const std::string &strFilename);
+    // Load shader bytecode from a file.
+    std::vector<char> LoadShader(const std::string &filename);
 
     // Create the render pass.
 	void CreateRenderPass();
 	// Create the graphics pipeline.
 	void CreateGraphicsPipeline();
 
-    // Load shader bytecode from a file.
-    std::vector<char> LoadShader(const std::string &filename);
+    // Create the framebuffers.
+    void CreateFramebuffers();
+    // Destroy the framebuffers.
+    void DestroyFramebuffers();
+
 
 private:
     // Handle to the vulkan instance.
@@ -141,6 +146,7 @@ private:
     // Graphics pipeline.
     VkPipeline vkgpipePipeline;
 
-
+    // framebuffers used to draw
+    std::vector<VkFramebuffer> atgtFramebuffers;
 };
 

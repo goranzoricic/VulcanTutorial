@@ -53,6 +53,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 	CreateRenderPass();
 	// create the graphics pipeline
 	CreateGraphicsPipeline();
+    // create the framebuffers
+    CreateFramebuffers();
 
     return true;
 }
@@ -60,6 +62,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // destroy the framebuffers
+    DestroyFramebuffers();
     // destroy the pipeline
     vkDestroyPipeline(vkdevLogicalDevice, vkgpipePipeline, nullptr);
 	// destroy the pipeline layout
@@ -725,6 +729,30 @@ VkShaderModule GfxAPIVulkan::CreateShaderModule(const std::string &strFilename) 
     return modShaderModule;
 }
 
+// Load shader bytecode from a file.
+std::vector<char> GfxAPIVulkan::LoadShader(const std::string &filename) {
+    // open the file and position at the end
+    std::ifstream fsFile(filename, std::ios::ate | std::ios::binary);
+
+    // if the file failed to open, throw an error
+    if (!fsFile.is_open()) {
+        throw std::runtime_error("Failed to open file");
+    }
+
+    // get the file size and preallocate the read buffer
+    size_t ctFileSize = fsFile.tellg();
+    std::vector<char> achReadBuffer(ctFileSize);
+
+    // rewind to the beginning and read the content into the buffer
+    fsFile.seekg(0);
+    fsFile.read(achReadBuffer.data(), ctFileSize);
+
+    // close the file
+    fsFile.close();
+
+    return achReadBuffer;
+}
+
 
 // Create the render pass.
 void GfxAPIVulkan::CreateRenderPass() {
@@ -967,27 +995,44 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 }
 
 
-// Load shader bytecode from a file.
-std::vector<char> GfxAPIVulkan::LoadShader(const std::string &filename) {
-    // open the file and position at the end
-    std::ifstream fsFile(filename, std::ios::ate | std::ios::binary);
+// Create the framebuffers.
+void GfxAPIVulkan::CreateFramebuffers() {
+    // resize the frame buffer array to match the number of swap chain image views
+    atgtFramebuffers.resize(aimgvImageViews.size());
 
-    // if the file failed to open, throw an error
-    if (!fsFile.is_open()) {
-        throw std::runtime_error("Failed to open file");
+    // prepare the common part of the framebuffer description
+    VkFramebufferCreateInfo ciFramebuffer = {};
+    ciFramebuffer.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    // bind the render pass
+    ciFramebuffer.renderPass = vkpassRenderPass;
+    // set the extends for the frame buffer
+    ciFramebuffer.width = sexExtent.width;
+    ciFramebuffer.height = sexExtent.height;
+    // only one layer
+    ciFramebuffer.layers = 1;
+    // there will only be one image view
+    ciFramebuffer.attachmentCount = 1;
+
+    // create a frame buffer for each image view
+    for (int iImageView = 0; iImageView < aimgvImageViews.size(); iImageView++) {
+        // create the image view attachment
+        VkImageView aimgvAttachments[] = {
+            aimgvImageViews[iImageView]
+        };
+
+        // bind the image view to the framebuffer
+        ciFramebuffer.pAttachments = aimgvAttachments;
+
+        // create the framebuffer
+        if (vkCreateFramebuffer(vkdevLogicalDevice, &ciFramebuffer, nullptr, &atgtFramebuffers[iImageView]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create a framebuffer");
+        }
     }
-
-    // get the file size and preallocate the read buffer
-    size_t ctFileSize = fsFile.tellg();
-    std::vector<char> achReadBuffer(ctFileSize);
-
-    // rewind to the beginning and read the content into the buffer
-    fsFile.seekg(0);
-    fsFile.read(achReadBuffer.data(), ctFileSize);
-
-    // close the file
-    fsFile.close();
-
-    return achReadBuffer;
 }
 
+// Destroy the framebuffers.
+void GfxAPIVulkan::DestroyFramebuffers() {
+    for (VkFramebuffer tgtFramebuffer : atgtFramebuffers) {
+        vkDestroyFramebuffer(vkdevLogicalDevice, tgtFramebuffer, nullptr);
+    }
+}
