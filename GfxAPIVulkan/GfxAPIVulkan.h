@@ -99,6 +99,9 @@ private:
     // Create the command buffers.
     void CreateCommandBuffers();
 
+    // Record the command buffers - NOTE: this is for the simple drawing from the tutorial.
+    void RecordCommandBuffers();
+
 private:
     // Handle to the vulkan instance.
     VkInstance vkiInstance;

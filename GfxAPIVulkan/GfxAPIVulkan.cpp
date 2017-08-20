@@ -60,6 +60,9 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     // allocate command buffers
     CreateCommandBuffers();
 
+    // Record the command buffers - NOTE: this is for the simple drawing from the tutorial.
+    RecordCommandBuffers();
+
     return true;
 }
 
@@ -1080,5 +1083,59 @@ void GfxAPIVulkan::CreateCommandBuffers() {
     // allocate the command buffers
     if (vkAllocateCommandBuffers(vkdevLogicalDevice, &ciAllocateBuffers, acbufCommandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create allocate command buffers");
+    }
+}
+
+
+// Record the command buffers - NOTE: this is for the simple drawing from the tutorial.
+void GfxAPIVulkan::RecordCommandBuffers() {
+    //  describe how the command buffers will be used
+    VkCommandBufferBeginInfo ciCommandBufferBegin = {};
+    ciCommandBufferBegin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    // it is possible that the command buffer will be resubmitted before the prebious submission has finished executing
+    ciCommandBufferBegin.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+    // primary command buffers don't inherit from anything
+    ciCommandBufferBegin.pInheritanceInfo = nullptr;
+
+    // define the fraembuffer clear color as black
+    VkClearValue colClearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+    // describe how the render pass will be used
+    VkRenderPassBeginInfo ciRenderPassBegin = {};
+    ciRenderPassBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    // bind the render pass definition
+    ciRenderPassBegin.renderPass = vkpassRenderPass;
+    // set the render area
+    ciRenderPassBegin.renderArea.offset = { 0,0 };
+    ciRenderPassBegin.renderArea.extent = sexExtent;
+    // set the clear color
+    ciRenderPassBegin.clearValueCount = 1;
+    ciRenderPassBegin.pClearValues = &colClearColor;
+
+    // record the same commands in all buffers
+    for (int iCommandBuffer = 0; iCommandBuffer < acbufCommandBuffers.size(); iCommandBuffer++) {
+        VkCommandBuffer &cbufCommandBuffer = acbufCommandBuffers[iCommandBuffer];
+        // begin the command buffer
+        vkBeginCommandBuffer(cbufCommandBuffer, &ciCommandBufferBegin);
+
+        // bind the frame buffer to the render pass
+        ciRenderPassBegin.framebuffer = atgtFramebuffers[iCommandBuffer];
+
+        // issue (record) the command to begin the render pass, with the command executed from the primary buffer
+        vkCmdBeginRenderPass(cbufCommandBuffer, &ciRenderPassBegin, VK_SUBPASS_CONTENTS_INLINE);
+        // issue the command to bind the graphics pipeline
+        vkCmdBindPipeline(cbufCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkgpipePipeline);
+
+        // issue the draw command to draw three vertice
+        // NOTE: the coordinates are hardcoded in the vertex shader
+        vkCmdDraw(cbufCommandBuffer, 3, 1, 0, 0);
+
+        // issue the command to end the render pass
+        vkCmdEndRenderPass(cbufCommandBuffer);
+
+        // end the command buffer
+        if (vkEndCommandBuffer(cbufCommandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to record command buffer");
+        }
     }
 }
