@@ -22,6 +22,9 @@ public:
     // Destroy the API. Returns true if successfull.
     virtual bool Destroy();
 
+    // Render a frame.
+    virtual void Render(); 
+
 private:
     // Initialize the application window.
     void CreateWindow(uint32_t dimWidth, uint32_t dimHeight);
@@ -81,14 +84,31 @@ private:
 
     // Load shaders and create shader modules.
     VkShaderModule CreateShaderModule(const std::string &strFilename);
+    // Load shader bytecode from a file.
+    std::vector<char> LoadShader(const std::string &filename);
 
     // Create the render pass.
 	void CreateRenderPass();
 	// Create the graphics pipeline.
 	void CreateGraphicsPipeline();
 
-    // Load shader bytecode from a file.
-    std::vector<char> LoadShader(const std::string &filename);
+    // Create the framebuffers.
+    void CreateFramebuffers();
+    // Destroy the framebuffers.
+    void DestroyFramebuffers();
+
+    // Create the command pool.
+    void CreateCommandPool();
+    // Create the command buffers.
+    void CreateCommandBuffers();
+
+    // Record the command buffers - NOTE: this is for the simple drawing from the tutorial.
+    void RecordCommandBuffers();
+
+    // Create semaphores for syncing buffer and renderer access.
+    void CreateSemaphores();
+    // Delete the semaphores.
+    void DestroySemaphores();
 
 private:
     // Handle to the vulkan instance.
@@ -141,6 +161,17 @@ private:
     // Graphics pipeline.
     VkPipeline vkgpipePipeline;
 
+    // Framebuffers used to draw.
+    std::vector<VkFramebuffer> atgtFramebuffers;
 
+    // Command pool that will hold command buffers.
+    VkCommandPool vkhCommandPool;
+    // Command buffers to post the commands to.
+    std::vector<VkCommandBuffer> acbufCommandBuffers;
+
+    // Semephore used to sync target buffers.
+    VkSemaphore syncImageAvailable;
+    // Semaphore used to sync presentation.
+    VkSemaphore syncRender;
 };
 

@@ -53,6 +53,18 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 	CreateRenderPass();
 	// create the graphics pipeline
 	CreateGraphicsPipeline();
+    // create the framebuffers
+    CreateFramebuffers();
+    // create the command pool
+    CreateCommandPool();
+    // allocate command buffers
+    CreateCommandBuffers();
+
+    // record the command buffers - NOTE: this is for the simple drawing from the tutorial.
+    RecordCommandBuffers();
+
+    // create the semaphores
+    CreateSemaphores();
 
     return true;
 }
@@ -60,6 +72,17 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // wait for the logical device to finish its current batch of work
+    vkDeviceWaitIdle(vkdevLogicalDevice);
+
+    // destroy semaphores
+    DestroySemaphores();
+    // delete the command buffers
+    vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool,(uint32_t) acbufCommandBuffers.size(), acbufCommandBuffers.data());
+    // destoy the command pool
+    vkDestroyCommandPool(vkdevLogicalDevice, vkhCommandPool, nullptr);
+    // destroy the framebuffers
+    DestroyFramebuffers();
     // destroy the pipeline
     vkDestroyPipeline(vkdevLogicalDevice, vkgpipePipeline, nullptr);
 	// destroy the pipeline layout
@@ -701,6 +724,8 @@ void GfxAPIVulkan::CreateLogicalDevice() {
 
     // retreive the handle to the graphics queue
     vkGetDeviceQueue(vkdevLogicalDevice, iGraphicsQueueFamily, 0, &qGraphicsQueue);
+    // retreive the handle to the presentation
+    vkGetDeviceQueue(vkdevLogicalDevice, iPresentationQueueFamily, 0, &qPresentationQueue);
 }
 
 
@@ -723,6 +748,30 @@ VkShaderModule GfxAPIVulkan::CreateShaderModule(const std::string &strFilename) 
     }
 
     return modShaderModule;
+}
+
+// Load shader bytecode from a file.
+std::vector<char> GfxAPIVulkan::LoadShader(const std::string &filename) {
+    // open the file and position at the end
+    std::ifstream fsFile(filename, std::ios::ate | std::ios::binary);
+
+    // if the file failed to open, throw an error
+    if (!fsFile.is_open()) {
+        throw std::runtime_error("Failed to open file");
+    }
+
+    // get the file size and preallocate the read buffer
+    size_t ctFileSize = fsFile.tellg();
+    std::vector<char> achReadBuffer(ctFileSize);
+
+    // rewind to the beginning and read the content into the buffer
+    fsFile.seekg(0);
+    fsFile.read(achReadBuffer.data(), ctFileSize);
+
+    // close the file
+    fsFile.close();
+
+    return achReadBuffer;
 }
 
 
@@ -758,7 +807,20 @@ void GfxAPIVulkan::CreateRenderPass() {
 	descSubPass.colorAttachmentCount = 1;
 	descSubPass.pColorAttachments = &refAttachment;
 
-	// description of the render pass to create
+    // describe the subpass dependency - making sure that the subpass doesn't begin before an buffer is available
+    VkSubpassDependency infDependency = {};
+    // the subpass waited on is the implicit subpass that usually happens at the start of the pipeline
+    infDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    // the subpass needs to wait until the swap chain is finished reading from the buffer (presenting the previous frame)
+    infDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    infDependency.srcAccessMask = 0;
+    // the dependant subpass is the apps subpass
+    infDependency.dstSubpass = 0;
+    // the operations that should wait are reading and writing of the color buffer
+    infDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    infDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    // description of the render pass to create
 	VkRenderPassCreateInfo ciRenderPass = {};
 	ciRenderPass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	// bind the color attachment
@@ -767,6 +829,9 @@ void GfxAPIVulkan::CreateRenderPass() {
 	// bind the subpass
 	ciRenderPass.subpassCount = 1;
 	ciRenderPass.pSubpasses = &descSubPass;
+    // bind the dependency
+    ciRenderPass.dependencyCount = 0;
+    ciRenderPass.pDependencies = &infDependency;
 
 	// finally, create the render pass
 	if (vkCreateRenderPass(vkdevLogicalDevice, &ciRenderPass, nullptr, &vkpassRenderPass) != VK_SUCCESS) {
@@ -967,27 +1032,219 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 }
 
 
-// Load shader bytecode from a file.
-std::vector<char> GfxAPIVulkan::LoadShader(const std::string &filename) {
-    // open the file and position at the end
-    std::ifstream fsFile(filename, std::ios::ate | std::ios::binary);
+// Create the framebuffers.
+void GfxAPIVulkan::CreateFramebuffers() {
+    // resize the frame buffer array to match the number of swap chain image views
+    atgtFramebuffers.resize(aimgvImageViews.size());
 
-    // if the file failed to open, throw an error
-    if (!fsFile.is_open()) {
-        throw std::runtime_error("Failed to open file");
+    // prepare the common part of the framebuffer description
+    VkFramebufferCreateInfo ciFramebuffer = {};
+    ciFramebuffer.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+    // bind the render pass
+    ciFramebuffer.renderPass = vkpassRenderPass;
+    // set the extends for the frame buffer
+    ciFramebuffer.width = sexExtent.width;
+    ciFramebuffer.height = sexExtent.height;
+    // only one layer
+    ciFramebuffer.layers = 1;
+    // there will only be one image view
+    ciFramebuffer.attachmentCount = 1;
+
+    // create a frame buffer for each image view
+    for (int iImageView = 0; iImageView < aimgvImageViews.size(); iImageView++) {
+        // create the image view attachment
+        VkImageView aimgvAttachments[] = {
+            aimgvImageViews[iImageView]
+        };
+
+        // bind the image view to the framebuffer
+        ciFramebuffer.pAttachments = aimgvAttachments;
+
+        // create the framebuffer
+        if (vkCreateFramebuffer(vkdevLogicalDevice, &ciFramebuffer, nullptr, &atgtFramebuffers[iImageView]) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to create a framebuffer");
+        }
     }
-
-    // get the file size and preallocate the read buffer
-    size_t ctFileSize = fsFile.tellg();
-    std::vector<char> achReadBuffer(ctFileSize);
-
-    // rewind to the beginning and read the content into the buffer
-    fsFile.seekg(0);
-    fsFile.read(achReadBuffer.data(), ctFileSize);
-
-    // close the file
-    fsFile.close();
-
-    return achReadBuffer;
 }
 
+// Destroy the framebuffers.
+void GfxAPIVulkan::DestroyFramebuffers() {
+    for (VkFramebuffer tgtFramebuffer : atgtFramebuffers) {
+        vkDestroyFramebuffer(vkdevLogicalDevice, tgtFramebuffer, nullptr);
+    }
+}
+
+
+// Create the command pool.
+void GfxAPIVulkan::CreateCommandPool() {
+    // describe the command pool
+    VkCommandPoolCreateInfo ciCommandPool = {};
+    ciCommandPool.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    // bind the graphics queue family to the command pool
+    ciCommandPool.queueFamilyIndex = iGraphicsQueueFamily;
+    // clear all flags
+    ciCommandPool.flags = 0;
+
+    // create the command pool
+    if (vkCreateCommandPool(vkdevLogicalDevice, &ciCommandPool, nullptr, &vkhCommandPool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the command pool");
+    }
+}
+
+// Create the command buffers.
+void GfxAPIVulkan::CreateCommandBuffers() {
+    // one command buffer is needed per framebuffer
+    acbufCommandBuffers.resize(atgtFramebuffers.size());
+
+    // describe the allocation of command buffers - all will be allocated with one call
+    VkCommandBufferAllocateInfo ciAllocateBuffers;
+    ciAllocateBuffers.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    // bind the command pool
+    ciAllocateBuffers.commandPool = vkhCommandPool;
+    // these are rimary buffers - can be directly submitted for execution
+    ciAllocateBuffers.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    // set the number of buffers
+    ciAllocateBuffers.commandBufferCount = (uint32_t) acbufCommandBuffers.size();
+
+    // allocate the command buffers
+    if (vkAllocateCommandBuffers(vkdevLogicalDevice, &ciAllocateBuffers, acbufCommandBuffers.data()) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create allocate command buffers");
+    }
+}
+
+
+// Record the command buffers - NOTE: this is for the simple drawing from the tutorial.
+void GfxAPIVulkan::RecordCommandBuffers() {
+    //  describe how the command buffers will be used
+    VkCommandBufferBeginInfo ciCommandBufferBegin = {};
+    ciCommandBufferBegin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    // it is possible that the command buffer will be resubmitted before the prebious submission has finished executing
+    ciCommandBufferBegin.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+    // primary command buffers don't inherit from anything
+    ciCommandBufferBegin.pInheritanceInfo = nullptr;
+
+    // define the fraembuffer clear color as black
+    VkClearValue colClearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+    // describe how the render pass will be used
+    VkRenderPassBeginInfo ciRenderPassBegin = {};
+    ciRenderPassBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    // bind the render pass definition
+    ciRenderPassBegin.renderPass = vkpassRenderPass;
+    // set the render area
+    ciRenderPassBegin.renderArea.offset = { 0,0 };
+    ciRenderPassBegin.renderArea.extent = sexExtent;
+    // set the clear color
+    ciRenderPassBegin.clearValueCount = 1;
+    ciRenderPassBegin.pClearValues = &colClearColor;
+
+    // record the same commands in all buffers
+    for (int iCommandBuffer = 0; iCommandBuffer < acbufCommandBuffers.size(); iCommandBuffer++) {
+        VkCommandBuffer &cbufCommandBuffer = acbufCommandBuffers[iCommandBuffer];
+        // begin the command buffer
+        vkBeginCommandBuffer(cbufCommandBuffer, &ciCommandBufferBegin);
+
+        // bind the frame buffer to the render pass
+        ciRenderPassBegin.framebuffer = atgtFramebuffers[iCommandBuffer];
+
+        // issue (record) the command to begin the render pass, with the command executed from the primary buffer
+        vkCmdBeginRenderPass(cbufCommandBuffer, &ciRenderPassBegin, VK_SUBPASS_CONTENTS_INLINE);
+        // issue the command to bind the graphics pipeline
+        vkCmdBindPipeline(cbufCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkgpipePipeline);
+
+        // issue the draw command to draw three vertice
+        // NOTE: the coordinates are hardcoded in the vertex shader
+        vkCmdDraw(cbufCommandBuffer, 3, 1, 0, 0);
+
+        // issue the command to end the render pass
+        vkCmdEndRenderPass(cbufCommandBuffer);
+
+        // end the command buffer
+        if (vkEndCommandBuffer(cbufCommandBuffer) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to record command buffer");
+        }
+    }
+}
+
+// Create semaphores for syncing buffer and renderer access.
+void GfxAPIVulkan::CreateSemaphores() {
+    
+    // describe the semaphores
+    VkSemaphoreCreateInfo ciSemaphore = {};
+    ciSemaphore.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    // cerate the semaphores
+    if (vkCreateSemaphore(vkdevLogicalDevice, &ciSemaphore, nullptr, &syncImageAvailable) != VK_SUCCESS ||
+        vkCreateSemaphore(vkdevLogicalDevice, &ciSemaphore, nullptr, &syncRender) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create semaphores");
+    }
+}
+
+// Delete the semaphores.
+void GfxAPIVulkan::DestroySemaphores() {
+    vkDestroySemaphore(vkdevLogicalDevice, syncImageAvailable, nullptr);
+    vkDestroySemaphore(vkdevLogicalDevice, syncRender, nullptr);
+}
+
+
+// Render a frame.
+void GfxAPIVulkan::Render() {
+    // obtain a target image from the swap chain
+    // setting max uint64 as the timeout (in nanoseconds) disables the timeout
+    // when the image becomes available the syncImageAvailable semaphore will be signaled
+    uint32_t iImage;
+    vkAcquireNextImageKHR(vkdevLogicalDevice, swcSwapChain, std::numeric_limits<uint64_t>::max(), syncImageAvailable, VK_NULL_HANDLE, &iImage);
+
+    // describe how the queue will be submitted and synchronized
+    VkSubmitInfo infSubmit = {};
+    infSubmit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    // bind the image semaphore that the queue has to wait on before it starts executing
+    VkSemaphore asyncWait[] = { syncImageAvailable };
+    infSubmit.waitSemaphoreCount = 1;
+    infSubmit.pWaitSemaphores = asyncWait;
+
+    // at what stage of the pipeline should the queue wait for the semaphore
+    // this sets the stage to the fragment program, making it possible for the vertex program to run before waiting
+    VkPipelineStageFlags aflgWaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    infSubmit.pWaitDstStageMask = aflgWaitStages;
+
+    // bind the command buffer
+    infSubmit.commandBufferCount = 1;
+    infSubmit.pCommandBuffers = &acbufCommandBuffers[iImage];
+
+    // set the semaphores that will be signalled when the command buffers are executed
+    VkSemaphore asyncSignal[] = { syncRender };
+    infSubmit.signalSemaphoreCount = 1;
+    infSubmit.pSignalSemaphores = asyncSignal;
+
+    // submit the command buffers to the queue
+    if (vkQueueSubmit(qGraphicsQueue, 1, &infSubmit, VK_NULL_HANDLE) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to submit draw command buffer");
+    }
+
+    // describe how to present the image
+    VkPresentInfoKHR infPresent = {};
+    infPresent.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+    // presentation should wait for the render semaphore to be signalled
+    infPresent.waitSemaphoreCount = 1;
+    infPresent.pWaitSemaphores = asyncSignal;
+
+    // what images to present to which swap chains
+    VkSwapchainKHR aswcChains[] = { swcSwapChain };
+    infPresent.swapchainCount = 1;
+    infPresent.pSwapchains = aswcChains;
+    infPresent.pImageIndices = &iImage;
+
+    // where to store the results (success/fail) of presentation, per swap chain
+    // not needed for a single swap chain, result of the presentation function can be used
+    infPresent.pResults = nullptr;
+
+    // present the queue
+    vkQueuePresentKHR(qPresentationQueue, &infPresent);
+
+    // wait for the device to finish rendering
+    // not needed in a proper application where there are other things to do while the grahics card and thread to their thing
+    vkDeviceWaitIdle(vkdevLogicalDevice);
+}
