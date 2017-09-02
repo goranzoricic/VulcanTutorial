@@ -22,6 +22,9 @@ public:
     // Destroy the API. Returns true if successfull.
     virtual bool Destroy();
 
+    // Render a frame.
+    virtual void Render(); 
+
 private:
     // Initialize the application window.
     void CreateWindow(uint32_t dimWidth, uint32_t dimHeight);

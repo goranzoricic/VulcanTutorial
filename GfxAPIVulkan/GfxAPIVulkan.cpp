@@ -721,6 +721,8 @@ void GfxAPIVulkan::CreateLogicalDevice() {
 
     // retreive the handle to the graphics queue
     vkGetDeviceQueue(vkdevLogicalDevice, iGraphicsQueueFamily, 0, &qGraphicsQueue);
+    // retreive the handle to the presentation
+    vkGetDeviceQueue(vkdevLogicalDevice, iPresentationQueueFamily, 0, &qPresentationQueue);
 }
 
 
@@ -802,7 +804,20 @@ void GfxAPIVulkan::CreateRenderPass() {
 	descSubPass.colorAttachmentCount = 1;
 	descSubPass.pColorAttachments = &refAttachment;
 
-	// description of the render pass to create
+    // describe the subpass dependency - making sure that the subpass doesn't begin before an buffer is available
+    VkSubpassDependency infDependency = {};
+    // the subpass waited on is the implicit subpass that usually happens at the start of the pipeline
+    infDependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    // the subpass needs to wait until the swap chain is finished reading from the buffer (presenting the previous frame)
+    infDependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    infDependency.srcAccessMask = 0;
+    // the dependant subpass is the apps subpass
+    infDependency.dstSubpass = 0;
+    // the operations that should wait are reading and writing of the color buffer
+    infDependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    infDependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    // description of the render pass to create
 	VkRenderPassCreateInfo ciRenderPass = {};
 	ciRenderPass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	// bind the color attachment
@@ -811,6 +826,9 @@ void GfxAPIVulkan::CreateRenderPass() {
 	// bind the subpass
 	ciRenderPass.subpassCount = 1;
 	ciRenderPass.pSubpasses = &descSubPass;
+    // bind the dependency
+    ciRenderPass.dependencyCount = 0;
+    ciRenderPass.pDependencies = &infDependency;
 
 	// finally, create the render pass
 	if (vkCreateRenderPass(vkdevLogicalDevice, &ciRenderPass, nullptr, &vkpassRenderPass) != VK_SUCCESS) {
@@ -1165,3 +1183,61 @@ void GfxAPIVulkan::DestroySemaphores() {
     vkDestroySemaphore(vkdevLogicalDevice, syncRender, nullptr);
 }
 
+
+// Render a frame.
+void GfxAPIVulkan::Render() {
+    // obtain a target image from the swap chain
+    // setting max uint64 as the timeout (in nanoseconds) disables the timeout
+    // when the image becomes available the syncImageAvailable semaphore will be signaled
+    uint32_t iImage;
+    vkAcquireNextImageKHR(vkdevLogicalDevice, swcSwapChain, std::numeric_limits<uint64_t>::max(), syncImageAvailable, VK_NULL_HANDLE, &iImage);
+
+    // describe how the queue will be submitted and synchronized
+    VkSubmitInfo infSubmit = {};
+    infSubmit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    // bind the image semaphore that the queue has to wait on before it starts executing
+    VkSemaphore asyncWait[] = { syncImageAvailable };
+    infSubmit.waitSemaphoreCount = 1;
+    infSubmit.pWaitSemaphores = asyncWait;
+
+    // at what stage of the pipeline should the queue wait for the semaphore
+    // this sets the stage to the fragment program, making it possible for the vertex program to run before waiting
+    VkPipelineStageFlags aflgWaitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    infSubmit.pWaitDstStageMask = aflgWaitStages;
+
+    // bind the command buffer
+    infSubmit.commandBufferCount = 1;
+    infSubmit.pCommandBuffers = &acbufCommandBuffers[iImage];
+
+    // set the semaphores that will be signalled when the command buffers are executed
+    VkSemaphore asyncSignal[] = { syncRender };
+    infSubmit.signalSemaphoreCount = 1;
+    infSubmit.pSignalSemaphores = asyncSignal;
+
+    // submit the command buffers to the queue
+    if (vkQueueSubmit(qGraphicsQueue, 1, &infSubmit, VK_NULL_HANDLE) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to submit draw command buffer");
+    }
+
+    // describe how to present the image
+    VkPresentInfoKHR infPresent = {};
+    infPresent.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+
+    // presentation should wait for the render semaphore to be signalled
+    infPresent.waitSemaphoreCount = 1;
+    infPresent.pWaitSemaphores = asyncSignal;
+
+    // what images to present to which swap chains
+    VkSwapchainKHR aswcChains[] = { swcSwapChain };
+    infPresent.swapchainCount = 1;
+    infPresent.pSwapchains = aswcChains;
+    infPresent.pImageIndices = &iImage;
+
+    // where to store the results (success/fail) of presentation, per swap chain
+    // not needed for a single swap chain, result of the presentation function can be used
+    infPresent.pResults = nullptr;
+
+    // present the queue
+    vkQueuePresentKHR(qPresentationQueue, &infPresent);
+}

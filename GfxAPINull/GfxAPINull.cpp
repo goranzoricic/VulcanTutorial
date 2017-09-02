@@ -12,3 +12,8 @@ bool GfxAPINull::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 bool GfxAPINull::Destroy() {
     return true;
 }
+
+// Render a frame.
+void GfxAPINull::Render() {
+    return;
+}
