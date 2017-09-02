@@ -72,6 +72,9 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // wait for the logical device to finish its current batch of work
+    vkDeviceWaitIdle(vkdevLogicalDevice);
+
     // destroy semaphores
     DestroySemaphores();
     // delete the command buffers
@@ -1240,4 +1243,8 @@ void GfxAPIVulkan::Render() {
 
     // present the queue
     vkQueuePresentKHR(qPresentationQueue, &infPresent);
+
+    // wait for the device to finish rendering
+    // not needed in a proper application where there are other things to do while the grahics card and thread to their thing
+    vkDeviceWaitIdle(vkdevLogicalDevice);
 }
