@@ -102,6 +102,11 @@ private:
     // Record the command buffers - NOTE: this is for the simple drawing from the tutorial.
     void RecordCommandBuffers();
 
+    // Create semaphores for syncing buffer and renderer access.
+    void CreateSemaphores();
+    // Delete the semaphores.
+    void DestroySemaphores();
+
 private:
     // Handle to the vulkan instance.
     VkInstance vkiInstance;
@@ -153,12 +158,17 @@ private:
     // Graphics pipeline.
     VkPipeline vkgpipePipeline;
 
-    // framebuffers used to draw
+    // Framebuffers used to draw.
     std::vector<VkFramebuffer> atgtFramebuffers;
 
-    // command pool that will hold command buffers
+    // Command pool that will hold command buffers.
     VkCommandPool vkhCommandPool;
-    // command buffers to post the commands to
+    // Command buffers to post the commands to.
     std::vector<VkCommandBuffer> acbufCommandBuffers;
+
+    // Semephore used to sync target buffers.
+    VkSemaphore syncImageAvailable;
+    // Semaphore used to sync presentation.
+    VkSemaphore syncRender;
 };
 

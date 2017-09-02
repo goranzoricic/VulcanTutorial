@@ -60,8 +60,11 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     // allocate command buffers
     CreateCommandBuffers();
 
-    // Record the command buffers - NOTE: this is for the simple drawing from the tutorial.
+    // record the command buffers - NOTE: this is for the simple drawing from the tutorial.
     RecordCommandBuffers();
+
+    // create the semaphores
+    CreateSemaphores();
 
     return true;
 }
@@ -69,6 +72,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
+    // destroy semaphores
+    DestroySemaphores();
     // delete the command buffers
     vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool,(uint32_t) acbufCommandBuffers.size(), acbufCommandBuffers.data());
     // destoy the command pool
@@ -1139,3 +1144,24 @@ void GfxAPIVulkan::RecordCommandBuffers() {
         }
     }
 }
+
+// Create semaphores for syncing buffer and renderer access.
+void GfxAPIVulkan::CreateSemaphores() {
+    
+    // describe the semaphores
+    VkSemaphoreCreateInfo ciSemaphore = {};
+    ciSemaphore.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    // cerate the semaphores
+    if (vkCreateSemaphore(vkdevLogicalDevice, &ciSemaphore, nullptr, &syncImageAvailable) != VK_SUCCESS ||
+        vkCreateSemaphore(vkdevLogicalDevice, &ciSemaphore, nullptr, &syncRender) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create semaphores");
+    }
+}
+
+// Delete the semaphores.
+void GfxAPIVulkan::DestroySemaphores() {
+    vkDestroySemaphore(vkdevLogicalDevice, syncImageAvailable, nullptr);
+    vkDestroySemaphore(vkdevLogicalDevice, syncRender, nullptr);
+}
+
