@@ -30,6 +30,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL ValidationErrorCallback(
     return VK_FALSE;
 }
 
+void GfxAPIVulkan::OnWindowResizedCallback(GLFWwindow* window, int width, int height) {
+    if (width == 0 || height == 0) {
+        return;
+    }
+    dynamic_cast<GfxAPIVulkan*>(GfxAPI::Get())->OnWindowResized(window, width, width);
+}
 
 // Initialize the API. Returns true if successfull.
 bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
@@ -45,14 +51,15 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     SelectPhysicalDevice();
     // create the logical device
     CreateLogicalDevice();
+
     // create the swap chain
     CreateSwapChain();
     // create image views
     CreateImageViews();
-	// create the render pass
-	CreateRenderPass();
-	// create the graphics pipeline
-	CreateGraphicsPipeline();
+    // create the render pass
+    CreateRenderPass();
+    // create the graphics pipeline
+    CreateGraphicsPipeline();
     // create the framebuffers
     CreateFramebuffers();
     // create the command pool
@@ -75,24 +82,14 @@ bool GfxAPIVulkan::Destroy() {
     // wait for the logical device to finish its current batch of work
     vkDeviceWaitIdle(vkdevLogicalDevice);
 
+    // destroy the swap chain
+    DestroySwapChain();
+
     // destroy semaphores
     DestroySemaphores();
-    // delete the command buffers
-    vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool,(uint32_t) acbufCommandBuffers.size(), acbufCommandBuffers.data());
     // destoy the command pool
     vkDestroyCommandPool(vkdevLogicalDevice, vkhCommandPool, nullptr);
-    // destroy the framebuffers
-    DestroyFramebuffers();
-    // destroy the pipeline
-    vkDestroyPipeline(vkdevLogicalDevice, vkgpipePipeline, nullptr);
-	// destroy the pipeline layout
-	vkDestroyPipelineLayout(vkdevLogicalDevice, vkplPipelineLayout, nullptr);
-	// destroy the render pass
-	vkDestroyRenderPass(vkdevLogicalDevice, vkpassRenderPass, nullptr);
-	// destroy the image views
-    DestroyImageViews();
-    // destroy the swap chain
-    vkDestroySwapchainKHR(vkdevLogicalDevice, swcSwapChain, nullptr);
+
     // destroy the logical devics
     vkDestroyDevice(vkdevLogicalDevice, nullptr);
     // remove the validation callback
@@ -109,6 +106,49 @@ bool GfxAPIVulkan::Destroy() {
     return true;
 }
 
+// Initialize swap chain. Called on first initialization, but also on window resize.
+void GfxAPIVulkan::InitializeSwapChain() {
+    // wait for the logical device to be idne
+    vkDeviceWaitIdle(vkdevLogicalDevice);
+
+    // destroy the swap chain
+    DestroySwapChain();
+
+    // create the swap chain
+    CreateSwapChain();
+    // create image views
+    CreateImageViews();
+    // create the render pass
+    CreateRenderPass();
+    // create the graphics pipeline
+    CreateGraphicsPipeline();
+    // create the framebuffers
+    CreateFramebuffers();
+    // allocate command buffers
+    CreateCommandBuffers();
+    // record the command buffers - NOTE: this is for the simple drawing from the tutorial.
+    RecordCommandBuffers();
+}
+
+// Destroy the swap chain.
+void GfxAPIVulkan::DestroySwapChain() {
+    // delete the command buffers
+    if (acbufCommandBuffers.size() > 0) {
+        vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool, (uint32_t)acbufCommandBuffers.size(), acbufCommandBuffers.data());
+    }
+    // destroy the framebuffers
+    DestroyFramebuffers();
+    // destroy the pipeline
+    vkDestroyPipeline(vkdevLogicalDevice, vkgpipePipeline, nullptr);
+	// destroy the pipeline layout
+	vkDestroyPipelineLayout(vkdevLogicalDevice, vkplPipelineLayout, nullptr);
+	// destroy the render pass
+	vkDestroyRenderPass(vkdevLogicalDevice, vkpassRenderPass, nullptr);
+	// destroy the image views
+    DestroyImageViews();
+    // destroy the swap chain
+    vkDestroySwapchainKHR(vkdevLogicalDevice, swcSwapChain, nullptr);
+}
 
 // Initialize the GfxAPIVulkan window.
 void GfxAPIVulkan::CreateWindow(uint32_t dimWidth, uint32_t dimHeight) {
@@ -117,13 +157,15 @@ void GfxAPIVulkan::CreateWindow(uint32_t dimWidth, uint32_t dimHeight) {
 
     // prevent GLFW from creating an OpenGL context
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    // window is not resizable, to avoid dealing with that
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     // create the window object, GLFW representation of the system window and link the two up
     _wndWindow = std::make_shared<Window>();
     GLFWwindow *wndWindow = glfwCreateWindow(dimWidth, dimHeight, "Vulkan", nullptr, nullptr);
     _wndWindow->Initialize(dimWidth, dimHeight, wndWindow);
+
+    // set the window resize callback
+    glfwSetWindowUserPointer(wndWindow, this);
+    glfwSetWindowSizeCallback(wndWindow, GfxAPIVulkan::OnWindowResizedCallback);
 }
 
 
@@ -325,11 +367,13 @@ void GfxAPIVulkan::SetupValidationErrorCallback() {
     // set the function pointer
     ciCallback.pfnCallback = ValidationErrorCallback;
 
-    // the function that creates the actual callback has to be obtained through vkGetInstanceProcAddr
-    auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(vkiInstance, "vkCreateDebugReportCallbackEXT");
-    // create the callback, and throw an exception if creation fails
-    if (vkCreateDebugReportCallbackEXT == nullptr || vkCreateDebugReportCallbackEXT(vkiInstance, &ciCallback, nullptr, &clbkValidation) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to set up the validation layer debug callback");
+    if (Options::Get().ShouldUseValidationLayers()) {
+        // the function that creates the actual callback has to be obtained through vkGetInstanceProcAddr
+        auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(vkiInstance, "vkCreateDebugReportCallbackEXT");
+        // create the callback, and throw an exception if creation fails
+        if (vkCreateDebugReportCallbackEXT == nullptr || vkCreateDebugReportCallbackEXT(vkiInstance, &ciCallback, nullptr, &clbkValidation) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to set up the validation layer debug callback");
+        }
     }
 }
 
@@ -1186,6 +1230,13 @@ void GfxAPIVulkan::DestroySemaphores() {
     vkDestroySemaphore(vkdevLogicalDevice, syncRender, nullptr);
 }
 
+// Called when the application's window is resized.
+void GfxAPIVulkan::OnWindowResized(GLFWwindow* window, uint32_t width, uint32_t height) {
+    // have the window update its dimensions
+    _wndWindow->UpdateDimensions();
+    // swap chain needs to be recreated to be able to render again
+    InitializeSwapChain();
+}
 
 // Render a frame.
 void GfxAPIVulkan::Render() {
@@ -1193,7 +1244,17 @@ void GfxAPIVulkan::Render() {
     // setting max uint64 as the timeout (in nanoseconds) disables the timeout
     // when the image becomes available the syncImageAvailable semaphore will be signaled
     uint32_t iImage;
-    vkAcquireNextImageKHR(vkdevLogicalDevice, swcSwapChain, std::numeric_limits<uint64_t>::max(), syncImageAvailable, VK_NULL_HANDLE, &iImage);
+    VkResult statusResult  = vkAcquireNextImageKHR(vkdevLogicalDevice, swcSwapChain, std::numeric_limits<uint64_t>::max(), syncImageAvailable, VK_NULL_HANDLE, &iImage);
+
+    // if acquiring the image failed because the swap chain has become incompatible with the surface
+    if (statusResult == VK_ERROR_OUT_OF_DATE_KHR) {
+        // setup the swap chain for the current surface
+        InitializeSwapChain();
+    // else, if the operation failed with no way to recover
+    } else if (statusResult != VK_SUCCESS && statusResult != VK_SUBOPTIMAL_KHR) {
+        throw std::runtime_error("Failed to acquire swap chain image");
+    }
+    // note that we consider suboptimal surface as success - this is something that could be handled better/differently by, for example, recreating the swap chain
 
     // describe how the queue will be submitted and synchronized
     VkSubmitInfo infSubmit = {};
@@ -1242,7 +1303,17 @@ void GfxAPIVulkan::Render() {
     infPresent.pResults = nullptr;
 
     // present the queue
-    vkQueuePresentKHR(qPresentationQueue, &infPresent);
+    statusResult = vkQueuePresentKHR(qPresentationQueue, &infPresent);
+
+    // if presentation failed because the swap chain has become incompatible with the surface
+    if (statusResult == VK_ERROR_OUT_OF_DATE_KHR) {
+        // setup the swap chain for the current surface
+        InitializeSwapChain();
+    // else, if the operation failed with no way to recover
+    } else if (statusResult != VK_SUCCESS && statusResult != VK_SUBOPTIMAL_KHR) {
+        throw std::runtime_error("Failed to present swap chain image");
+    }
+    // note that we consider suboptimal surface as success - this is something that could be handled better/differently by, for example, recreating the swap chain
 
     // wait for the device to finish rendering
     // not needed in a proper application where there are other things to do while the grahics card and thread to their thing

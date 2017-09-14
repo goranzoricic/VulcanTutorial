@@ -2,8 +2,13 @@
 #include "../GfxAPI/GfxAPI.h"
 #include <vulkan/vulkan.h>
 
+struct GLFWwindow;
+
 // Implementation of Vulkan graphics API.
 class GfxAPIVulkan : public GfxAPI {
+public:
+    static void GfxAPIVulkan::OnWindowResizedCallback(GLFWwindow* window, int width, int height);
+
 private:
     GfxAPIVulkan() :vkdevPhysicalDevice(VK_NULL_HANDLE), 
                     vkdevLogicalDevice(VK_NULL_HANDLE), 
@@ -11,7 +16,10 @@ private:
                     qGraphicsQueue(VK_NULL_HANDLE),
                     iPresentationQueueFamily(-1),
                     qPresentationQueue(VK_NULL_HANDLE),
-                    swcSwapChain(VK_NULL_HANDLE)
+                    swcSwapChain(VK_NULL_HANDLE),
+                    vkpassRenderPass(VK_NULL_HANDLE),
+                    vkplPipelineLayout(VK_NULL_HANDLE),
+                    vkgpipePipeline(VK_NULL_HANDLE)
     {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
@@ -26,10 +34,19 @@ public:
     virtual void Render(); 
 
 private:
+    // Called when the application's window is resized.
+    void OnWindowResized(GLFWwindow* window, uint32_t width, uint32_t height);
+
+private:
     // Initialize the application window.
     void CreateWindow(uint32_t dimWidth, uint32_t dimHeight);
     // Create the Vulkan instance.
     void CreateInstance();
+
+    // Initialize swap chain. Called on first initialization, but also on window resize.
+    void InitializeSwapChain();
+    // Destroy the swap chain.
+    void DestroySwapChain();
 
     // Get the Vulkan instance extensions required for the applciation to work.
     void GetRequiredInstanceExtensions(std::vector<const char*> &astrRequiredExtensions) const;
