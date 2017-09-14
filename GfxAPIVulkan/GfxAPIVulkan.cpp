@@ -8,6 +8,58 @@
 #include "../GfxAPI/Window.h"
 
 
+// NOTE: refactor this
+struct Vertex {
+    glm::vec2 vecPosition;
+    glm::vec3 colColor;
+
+    // Describe to the Vulkan API how to handle Vertex data.
+    static VkVertexInputBindingDescription GetBindingDescription() {
+        // describe the layout of a vertex
+        VkVertexInputBindingDescription descVertexInputBinding = {};
+        // index of the binding in the array of bindings
+        descVertexInputBinding.binding = 0;
+        // number of bytes from the start of one entry to the next
+        descVertexInputBinding.stride = sizeof(Vertex);
+        // move to next data entry after each vertex (could be instance)
+        descVertexInputBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    };
+
+    // Describe each individual vertex attribute.
+    static std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 2> adescAttributes = {};
+        // set up the description of the vertex position
+        // data comes from the binding 0 (set up above)
+        adescAttributes[0].binding = 0;
+        // data goes to the location 0 (specified in the vertex shader)
+        adescAttributes[0].location = 0;
+        // data is two 32bit floats (screen x, y)
+        adescAttributes[0].format = VK_FORMAT_R32G32_SFLOAT;
+        // offset of this attribute from the start of the data block
+        adescAttributes[0].offset = offsetof(Vertex, vecPosition);
+
+        // set up the description of the vertex color
+        // data comes from the binding 0 (set up above)
+        adescAttributes[1].binding = 0;
+        // data goes to the location 0 (specified in the vertex shader)
+        adescAttributes[1].location = 1;
+        // data is three 32bit floats (red, green, blue)
+        adescAttributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        // offset of this attribute from the start of the data block
+        adescAttributes[1].offset = offsetof(Vertex, colColor);
+
+        return adescAttributes;
+    };
+};
+
+// Vertices of the triangle.
+const std::vector<Vertex> avVertices = {
+    { {0.0f, -0.5f}, { 1.0f, 0.0f, 0.0f }},
+    { { 0.5f, 0.5f },{ 0.0f, 1.0f, 0.0f } },
+    { { -0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f } }
+};
+
+
 // list of validation layers' names that we want to enable
 const std::vector<const char*> validationLayers = {
     // this is a standard set of validation layers, not a single layer
@@ -913,16 +965,17 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
     // create the array of shader stages to bind to the pipeline
     VkPipelineShaderStageCreateInfo aciShaderStages[] = { ciShaderStageVert, ciShaderStageFrag };
 
-
     // describe the vertex program inputs
 	VkPipelineVertexInputStateCreateInfo ciVertexInput = {};
 	ciVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	// since all vertexes info is hardcode in the shader, there are no bindings
-	ciVertexInput.vertexBindingDescriptionCount = 0;
-	ciVertexInput.pVertexBindingDescriptions = nullptr;
-	// also, there are no attributes
-	ciVertexInput.vertexAttributeDescriptionCount = 0;
-	ciVertexInput.pVertexAttributeDescriptions = nullptr;
+	// bind the binding descriptions
+    auto descBinding = Vertex::GetBindingDescription();
+	ciVertexInput.vertexBindingDescriptionCount = 1;
+	ciVertexInput.pVertexBindingDescriptions = &descBinding;
+	// bind the vertex attributes
+    auto adescAttributes = Vertex::GetAttributeDescriptions();
+	ciVertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(adescAttributes.size());
+	ciVertexInput.pVertexAttributeDescriptions = adescAttributes.data();
 
 	// describe the topology and if primitive restart will be used
 	VkPipelineInputAssemblyStateCreateInfo ciInputAssembly;
