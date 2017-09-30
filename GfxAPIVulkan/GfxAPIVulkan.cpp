@@ -23,6 +23,8 @@ struct Vertex {
         descVertexInputBinding.stride = sizeof(Vertex);
         // move to next data entry after each vertex (could be instance)
         descVertexInputBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return descVertexInputBinding;
     };
 
     // Describe each individual vertex attribute.
