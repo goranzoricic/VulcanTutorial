@@ -118,6 +118,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateFramebuffers();
     // create the command pool
     CreateCommandPool();
+    // create the vertex buffer
+    CreateVertexBuffers();
     // allocate command buffers
     CreateCommandBuffers();
 
@@ -139,6 +141,8 @@ bool GfxAPIVulkan::Destroy() {
     // destroy the swap chain
     DestroySwapChain();
 
+    // destroy the vertex buffer
+    vkDestroyBuffer(vkdevLogicalDevice, vkhVertexBuffer, nullptr);
     // destroy semaphores
     DestroySemaphores();
     // destoy the command pool
@@ -1284,6 +1288,26 @@ void GfxAPIVulkan::DestroySemaphores() {
     vkDestroySemaphore(vkdevLogicalDevice, syncImageAvailable, nullptr);
     vkDestroySemaphore(vkdevLogicalDevice, syncRender, nullptr);
 }
+
+
+// Create vertex buffers.
+void GfxAPIVulkan::CreateVertexBuffers() {
+    // describe the vertex buffer
+    VkBufferCreateInfo infoVertexBuffer;
+    infoVertexBuffer.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    // set the size in bytes
+    infoVertexBuffer.size = sizeof(avVertices[0]) * avVertices.size();
+    // mark that this describes a vertex buffer
+    infoVertexBuffer.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    // mark that the buffer is excluseive to one queue and not shared between multiple queues
+    infoVertexBuffer.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    // create the vertex buffer
+    if (vkCreateBuffer(vkdevLogicalDevice, &infoVertexBuffer, nullptr, &vkhVertexBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the vertex buffer");
+    }
+}
+
 
 // Called when the application's window is resized.
 void GfxAPIVulkan::OnWindowResized(GLFWwindow* window, uint32_t width, uint32_t height) {
