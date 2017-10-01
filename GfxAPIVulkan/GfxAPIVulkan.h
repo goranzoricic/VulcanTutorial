@@ -19,7 +19,9 @@ private:
                     swcSwapChain(VK_NULL_HANDLE),
                     vkpassRenderPass(VK_NULL_HANDLE),
                     vkplPipelineLayout(VK_NULL_HANDLE),
-                    vkgpipePipeline(VK_NULL_HANDLE)
+                    vkgpipePipeline(VK_NULL_HANDLE),
+                    vkhVertexBuffer(VK_NULL_HANDLE),
+                    vkhBufferMemory(VK_NULL_HANDLE)
     {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
@@ -127,6 +129,11 @@ private:
     // Delete the semaphores.
     void DestroySemaphores();
 
+    // Create vertex buffers.
+    void CreateVertexBuffers();
+    // Get the graphics memory type with the desired properties.
+    uint32_t FindMemoryType(uint32_t flgTypeFilter, VkMemoryPropertyFlags flgProperties);
+
 private:
     // Handle to the vulkan instance.
     VkInstance vkiInstance;
@@ -190,5 +197,10 @@ private:
     VkSemaphore syncImageAvailable;
     // Semaphore used to sync presentation.
     VkSemaphore syncRender;
+
+    // Vertex buffer holding the triangle's vertices.
+    VkBuffer vkhVertexBuffer;
+    // Memory used by the vertex buffer.
+    VkDeviceMemory vkhBufferMemory;
 };
 

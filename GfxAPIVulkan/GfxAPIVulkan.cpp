@@ -8,6 +8,60 @@
 #include "../GfxAPI/Window.h"
 
 
+// NOTE: refactor this
+struct Vertex {
+    glm::vec2 vecPosition;
+    glm::vec3 colColor;
+
+    // Describe to the Vulkan API how to handle Vertex data.
+    static VkVertexInputBindingDescription GetBindingDescription() {
+        // describe the layout of a vertex
+        VkVertexInputBindingDescription descVertexInputBinding = {};
+        // index of the binding in the array of bindings
+        descVertexInputBinding.binding = 0;
+        // number of bytes from the start of one entry to the next
+        descVertexInputBinding.stride = sizeof(Vertex);
+        // move to next data entry after each vertex (could be instance)
+        descVertexInputBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+        return descVertexInputBinding;
+    };
+
+    // Describe each individual vertex attribute.
+    static std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 2> adescAttributes = {};
+        // set up the description of the vertex position
+        // data comes from the binding 0 (set up above)
+        adescAttributes[0].binding = 0;
+        // data goes to the location 0 (specified in the vertex shader)
+        adescAttributes[0].location = 0;
+        // data is two 32bit floats (screen x, y)
+        adescAttributes[0].format = VK_FORMAT_R32G32_SFLOAT;
+        // offset of this attribute from the start of the data block
+        adescAttributes[0].offset = offsetof(Vertex, vecPosition);
+
+        // set up the description of the vertex color
+        // data comes from the binding 0 (set up above)
+        adescAttributes[1].binding = 0;
+        // data goes to the location 0 (specified in the vertex shader)
+        adescAttributes[1].location = 1;
+        // data is three 32bit floats (red, green, blue)
+        adescAttributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        // offset of this attribute from the start of the data block
+        adescAttributes[1].offset = offsetof(Vertex, colColor);
+
+        return adescAttributes;
+    };
+};
+
+// Vertices of the triangle.
+const std::vector<Vertex> avVertices = {
+    { {0.0f, -0.5f}, { 1.0f, 0.0f, 0.0f }},
+    { { 0.5f, 0.5f },{ 0.0f, 1.0f, 0.0f } },
+    { { -0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f } }
+};
+
+
 // list of validation layers' names that we want to enable
 const std::vector<const char*> validationLayers = {
     // this is a standard set of validation layers, not a single layer
@@ -64,6 +118,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateFramebuffers();
     // create the command pool
     CreateCommandPool();
+    // create the vertex buffer
+    CreateVertexBuffers();
     // allocate command buffers
     CreateCommandBuffers();
 
@@ -84,6 +140,11 @@ bool GfxAPIVulkan::Destroy() {
 
     // destroy the swap chain
     DestroySwapChain();
+
+    // destroy the vertex buffer
+    vkDestroyBuffer(vkdevLogicalDevice, vkhVertexBuffer, nullptr);
+    // release memory used by the vertex buffer
+    vkFreeMemory(vkdevLogicalDevice, vkhBufferMemory, nullptr);
 
     // destroy semaphores
     DestroySemaphores();
@@ -913,16 +974,17 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
     // create the array of shader stages to bind to the pipeline
     VkPipelineShaderStageCreateInfo aciShaderStages[] = { ciShaderStageVert, ciShaderStageFrag };
 
-
     // describe the vertex program inputs
 	VkPipelineVertexInputStateCreateInfo ciVertexInput = {};
 	ciVertexInput.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	// since all vertexes info is hardcode in the shader, there are no bindings
-	ciVertexInput.vertexBindingDescriptionCount = 0;
-	ciVertexInput.pVertexBindingDescriptions = nullptr;
-	// also, there are no attributes
-	ciVertexInput.vertexAttributeDescriptionCount = 0;
-	ciVertexInput.pVertexAttributeDescriptions = nullptr;
+	// bind the binding descriptions
+    auto descBinding = Vertex::GetBindingDescription();
+	ciVertexInput.vertexBindingDescriptionCount = 1;
+	ciVertexInput.pVertexBindingDescriptions = &descBinding;
+	// bind the vertex attributes
+    auto adescAttributes = Vertex::GetAttributeDescriptions();
+	ciVertexInput.vertexAttributeDescriptionCount = static_cast<uint32_t>(adescAttributes.size());
+	ciVertexInput.pVertexAttributeDescriptions = adescAttributes.data();
 
 	// describe the topology and if primitive restart will be used
 	VkPipelineInputAssemblyStateCreateInfo ciInputAssembly;
@@ -1196,9 +1258,14 @@ void GfxAPIVulkan::RecordCommandBuffers() {
         // issue the command to bind the graphics pipeline
         vkCmdBindPipeline(cbufCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkgpipePipeline);
 
+        // bind the vertex buffer
+        VkBuffer avkhBuffers[] = { vkhVertexBuffer };
+        VkDeviceSize actOffsets[] = { 0 };
+        vkCmdBindVertexBuffers(cbufCommandBuffer, 0, 1, avkhBuffers, actOffsets);
+
         // issue the draw command to draw three vertice
         // NOTE: the coordinates are hardcoded in the vertex shader
-        vkCmdDraw(cbufCommandBuffer, 3, 1, 0, 0);
+        vkCmdDraw(cbufCommandBuffer, static_cast<uint32_t>(avVertices.size()), 1, 0, 0);
 
         // issue the command to end the render pass
         vkCmdEndRenderPass(cbufCommandBuffer);
@@ -1229,6 +1296,72 @@ void GfxAPIVulkan::DestroySemaphores() {
     vkDestroySemaphore(vkdevLogicalDevice, syncImageAvailable, nullptr);
     vkDestroySemaphore(vkdevLogicalDevice, syncRender, nullptr);
 }
+
+
+// Create vertex buffers.
+void GfxAPIVulkan::CreateVertexBuffers() {
+    // describe the vertex buffer
+    VkBufferCreateInfo infoVertexBuffer = {};
+    infoVertexBuffer.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    // set the size in bytes
+    infoVertexBuffer.size = sizeof(avVertices[0]) * avVertices.size();
+    // mark that this describes a vertex buffer
+    infoVertexBuffer.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    // mark that the buffer is excluseive to one queue and not shared between multiple queues
+    infoVertexBuffer.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+    // create the vertex buffer
+    if (vkCreateBuffer(vkdevLogicalDevice, &infoVertexBuffer, nullptr, &vkhVertexBuffer) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the vertex buffer");
+    }
+
+    // get the buffer's memory requirements
+    VkMemoryRequirements propsMemoryRequirements = {};
+    vkGetBufferMemoryRequirements(vkdevLogicalDevice, vkhVertexBuffer, &propsMemoryRequirements);
+
+    // describe the memory allocation
+    VkMemoryAllocateInfo infoBufferMemory = {};
+    infoBufferMemory.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    // how much memory to allocate
+    infoBufferMemory.allocationSize = propsMemoryRequirements.size;
+    // find the appropriate memory type
+    infoBufferMemory.memoryTypeIndex = FindMemoryType(propsMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    // allocate the memory for the buffer
+    if (vkAllocateMemory(vkdevLogicalDevice, &infoBufferMemory, nullptr, &vkhBufferMemory) != VK_SUCCESS) {
+        throw std::runtime_error("Unable to allocate memory for the vertex buffer");
+    }
+
+    // after a successfull allocation, bind the memory to the buffer
+    vkBindBufferMemory(vkdevLogicalDevice, vkhVertexBuffer, vkhBufferMemory, 0);
+
+    // to copy the vertex buffer values to GPU memory, it first needs to be mapped to CPU
+    void *pMappedMemory;
+    vkMapMemory(vkdevLogicalDevice, vkhBufferMemory, 0, infoVertexBuffer.size, 0, &pMappedMemory);
+    // copy the buffer to mapped memory
+    memcpy(pMappedMemory, avVertices.data(), infoVertexBuffer.size);
+    // unmap memory, let the GPU take over
+    vkUnmapMemory(vkdevLogicalDevice, vkhBufferMemory);
+}
+
+// Get the graphics memory type with the desired properties.
+uint32_t GfxAPIVulkan::FindMemoryType(uint32_t flgTypeFilter, VkMemoryPropertyFlags flgProperties) {
+    // get all memory types for the physical device
+    VkPhysicalDeviceMemoryProperties propsDeviceMemoryProperties;
+    vkGetPhysicalDeviceMemoryProperties(vkdevPhysicalDevice, &propsDeviceMemoryProperties);
+
+    // go through all memory types an find the suitable one
+    for (uint32_t iMemoryType = 0; iMemoryType < propsDeviceMemoryProperties.memoryTypeCount; iMemoryType++) {
+        // if the type index matches the filter and memory type propeties match the requested ones
+        if ((flgTypeFilter & (1 << iMemoryType)) && (propsDeviceMemoryProperties.memoryTypes[iMemoryType].propertyFlags & flgProperties) == flgProperties) {
+            // return the memory type index
+            return iMemoryType;
+        }
+    }
+    // if the appropriate memory type wasn't found, throw an exception
+    throw std::runtime_error("Unable to find an appropriate memory type");
+}
+
 
 // Called when the application's window is resized.
 void GfxAPIVulkan::OnWindowResized(GLFWwindow* window, uint32_t width, uint32_t height) {
