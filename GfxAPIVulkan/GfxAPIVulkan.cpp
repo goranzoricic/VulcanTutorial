@@ -54,15 +54,23 @@ struct Vertex {
     };
 };
 
-// Vertices of the triangle.
+// Vertices that the drawn shape consists of.
 const std::vector<Vertex> avVertices = {
-    { {0.0f, -0.5f}, { 1.0f, 0.0f, 0.0f }},
-    { { 0.5f, 0.5f },{ 0.0f, 1.0f, 0.0f } },
-    { { -0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f } }
+    { { -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f } },
+    { { 0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f } },
+    { { 0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f } },
+    { { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f } } 
 };
 
 
-// list of validation layers' names that we want to enable
+// Indices that describe the order of vertices in shape's triangles.
+const std::vector<uint16_t> aiIndices = {
+    0, 1, 2,
+    2, 3, 0,
+};
+
+
+// List of validation layers' names that we want to enable.
 const std::vector<const char*> validationLayers = {
     // this is a standard set of validation layers, not a single layer
     "VK_LAYER_LUNARG_standard_validation"
@@ -120,6 +128,9 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateCommandPool();
     // create the vertex buffer
     CreateVertexBuffers();
+    // create the index buffer
+    CreateIndexBuffers();
+
     // allocate command buffers
     CreateCommandBuffers();
 
@@ -144,7 +155,11 @@ bool GfxAPIVulkan::Destroy() {
     // destroy the vertex buffer
     vkDestroyBuffer(vkdevLogicalDevice, vkhVertexBuffer, nullptr);
     // release memory used by the vertex buffer
-    vkFreeMemory(vkdevLogicalDevice, vkhBufferMemory, nullptr);
+    vkFreeMemory(vkdevLogicalDevice, vkhVertexBufferMemory, nullptr);
+    // destroy the vertex buffer
+    vkDestroyBuffer(vkdevLogicalDevice, vkhIndexBuffer, nullptr);
+    // release memory used by the vertex buffer
+    vkFreeMemory(vkdevLogicalDevice, vkhIndexBufferMemory, nullptr);
 
     // destroy semaphores
     DestroySemaphores();
@@ -1262,10 +1277,11 @@ void GfxAPIVulkan::RecordCommandBuffers() {
         VkBuffer avkhBuffers[] = { vkhVertexBuffer };
         VkDeviceSize actOffsets[] = { 0 };
         vkCmdBindVertexBuffers(cbufCommandBuffer, 0, 1, avkhBuffers, actOffsets);
+        // bind the index buffer
+        vkCmdBindIndexBuffer(cbufCommandBuffer, vkhIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
-        // issue the draw command to draw three vertice
-        // NOTE: the coordinates are hardcoded in the vertex shader
-        vkCmdDraw(cbufCommandBuffer, static_cast<uint32_t>(avVertices.size()), 1, 0, 0);
+        // issue the draw command to draw index buffers
+        vkCmdDrawIndexed(cbufCommandBuffer, static_cast<uint32_t>(aiIndices.size()), 1, 0, 0, 0);
 
         // issue the command to end the render pass
         vkCmdEndRenderPass(cbufCommandBuffer);
@@ -1300,24 +1316,86 @@ void GfxAPIVulkan::DestroySemaphores() {
 
 // Create vertex buffers.
 void GfxAPIVulkan::CreateVertexBuffers() {
+    // create the vertex buffer
+    VkDeviceSize ctBufferSize = sizeof(avVertices[0]) * avVertices.size();
+
+    // create a staging buffer - it is a source in a memory transfer operation, and is located on the host
+    VkBuffer vkhStagingBuffer;
+    VkDeviceMemory vkhStagingMemory;
+    CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkhStagingBuffer, vkhStagingMemory);
+    
+    // to copy the vertex buffer values to GPU memory, it first needs to be mapped to CPU
+    void *pMappedMemory;
+    vkMapMemory(vkdevLogicalDevice, vkhStagingMemory, 0, ctBufferSize, 0, &pMappedMemory);
+    // copy the buffer to mapped memory
+    memcpy(pMappedMemory, avVertices.data(), ctBufferSize);
+    // unmap memory, let the GPU take over
+    vkUnmapMemory(vkdevLogicalDevice, vkhStagingMemory);
+
+    // create the vertex buffer - it is located in device memory and is a memory transfer destination
+    CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkhVertexBuffer, vkhVertexBufferMemory);
+
+    // copy staging buffer contents to the vertex buffer
+    CopyBuffer(vkhStagingBuffer, vkhVertexBuffer, ctBufferSize);
+
+    // destroy the staging buffer
+    vkDestroyBuffer(vkdevLogicalDevice, vkhStagingBuffer, nullptr);
+    // free buffer memory
+    vkFreeMemory(vkdevLogicalDevice, vkhStagingMemory, nullptr);
+}
+
+
+// Create index buffer.
+void GfxAPIVulkan::CreateIndexBuffers() {
+    // get the index buffer size
+    VkDeviceSize ctBufferSize = sizeof(aiIndices[0]) * aiIndices.size();
+
+    // create a staging buffer - it is a source in a memory transfer operation, and is located on the host
+    VkBuffer vkhStagingBuffer;
+    VkDeviceMemory vkhStagingMemory;
+    CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkhStagingBuffer, vkhStagingMemory);
+
+    // to copy the index buffer values to GPU memory, it first needs to be mapped to CPU
+    void *pMappedMemory;
+    vkMapMemory(vkdevLogicalDevice, vkhStagingMemory, 0, ctBufferSize, 0, &pMappedMemory);
+    // copy the buffer to mapped memory
+    memcpy(pMappedMemory, aiIndices.data(), ctBufferSize);
+    // unmap memory, let the GPU take over
+    vkUnmapMemory(vkdevLogicalDevice, vkhStagingMemory);
+
+    // create the index buffer - it is located in device memory and is a memory transfer destination
+    CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkhIndexBuffer, vkhIndexBufferMemory);
+
+    // copy staging buffer contents to the index buffer
+    CopyBuffer(vkhStagingBuffer, vkhIndexBuffer, ctBufferSize);
+
+    // destroy the staging buffer
+    vkDestroyBuffer(vkdevLogicalDevice, vkhStagingBuffer, nullptr);
+    // free buffer memory
+    vkFreeMemory(vkdevLogicalDevice, vkhStagingMemory, nullptr);
+}
+
+
+// Create a buffer - vertex, transfer, index...
+void GfxAPIVulkan::CreateBuffer(VkDeviceSize ctSize, VkBufferUsageFlags flgBufferUsage, VkMemoryPropertyFlags flgMemoryProperties, VkBuffer &vkhBuffer, VkDeviceMemory &vkhMemory) {
     // describe the vertex buffer
-    VkBufferCreateInfo infoVertexBuffer = {};
-    infoVertexBuffer.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    VkBufferCreateInfo infoBuffer = {};
+    infoBuffer.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     // set the size in bytes
-    infoVertexBuffer.size = sizeof(avVertices[0]) * avVertices.size();
+    infoBuffer.size = ctSize;
     // mark that this describes a vertex buffer
-    infoVertexBuffer.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    infoBuffer.usage = flgBufferUsage;
     // mark that the buffer is excluseive to one queue and not shared between multiple queues
-    infoVertexBuffer.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    infoBuffer.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     // create the vertex buffer
-    if (vkCreateBuffer(vkdevLogicalDevice, &infoVertexBuffer, nullptr, &vkhVertexBuffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(vkdevLogicalDevice, &infoBuffer, nullptr, &vkhBuffer) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the vertex buffer");
     }
 
     // get the buffer's memory requirements
     VkMemoryRequirements propsMemoryRequirements = {};
-    vkGetBufferMemoryRequirements(vkdevLogicalDevice, vkhVertexBuffer, &propsMemoryRequirements);
+    vkGetBufferMemoryRequirements(vkdevLogicalDevice, vkhBuffer, &propsMemoryRequirements);
 
     // describe the memory allocation
     VkMemoryAllocateInfo infoBufferMemory = {};
@@ -1325,24 +1403,71 @@ void GfxAPIVulkan::CreateVertexBuffers() {
     // how much memory to allocate
     infoBufferMemory.allocationSize = propsMemoryRequirements.size;
     // find the appropriate memory type
-    infoBufferMemory.memoryTypeIndex = FindMemoryType(propsMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    infoBufferMemory.memoryTypeIndex = FindMemoryType(propsMemoryRequirements.memoryTypeBits, flgMemoryProperties);
 
     // allocate the memory for the buffer
-    if (vkAllocateMemory(vkdevLogicalDevice, &infoBufferMemory, nullptr, &vkhBufferMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(vkdevLogicalDevice, &infoBufferMemory, nullptr, &vkhMemory) != VK_SUCCESS) {
         throw std::runtime_error("Unable to allocate memory for the vertex buffer");
     }
 
     // after a successfull allocation, bind the memory to the buffer
-    vkBindBufferMemory(vkdevLogicalDevice, vkhVertexBuffer, vkhBufferMemory, 0);
-
-    // to copy the vertex buffer values to GPU memory, it first needs to be mapped to CPU
-    void *pMappedMemory;
-    vkMapMemory(vkdevLogicalDevice, vkhBufferMemory, 0, infoVertexBuffer.size, 0, &pMappedMemory);
-    // copy the buffer to mapped memory
-    memcpy(pMappedMemory, avVertices.data(), infoVertexBuffer.size);
-    // unmap memory, let the GPU take over
-    vkUnmapMemory(vkdevLogicalDevice, vkhBufferMemory);
+    vkBindBufferMemory(vkdevLogicalDevice, vkhBuffer, vkhMemory, 0);
 }
+
+
+// Copy memory from one buffer to the other.
+void GfxAPIVulkan::CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationBuffer, VkDeviceSize ctSize) {
+    // create a temporary command buffer
+    VkCommandBufferAllocateInfo infoCommandBuffer = {};
+    infoCommandBuffer.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    // it is a primary buffer
+    infoCommandBuffer.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    // it uses the same command pool - NOTE: it would be more optimal to create a new command pool for temp buffers
+    infoCommandBuffer.commandPool = vkhCommandPool;
+    // only one buffer will be allocated
+    infoCommandBuffer.commandBufferCount = 1;
+
+    // allocate teh buffer
+    VkCommandBuffer vkhCommandBuffer = {};
+    vkAllocateCommandBuffers(vkdevLogicalDevice, &infoCommandBuffer, &vkhCommandBuffer);
+
+    // start recording the command buffer
+    VkCommandBufferBeginInfo infoBegin = {};
+    infoBegin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    // this buffer is only going to be submitted once
+    infoBegin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    // start recording
+    vkBeginCommandBuffer(vkhCommandBuffer, &infoBegin);
+
+    // create the copy command - copies start from beggining, size is the size specified in the input arguments
+    VkBufferCopy cmdCopy = {};
+    cmdCopy.srcOffset = 0;
+    cmdCopy.dstOffset = 0;
+    cmdCopy.size = ctSize;
+
+    // run the copy command
+    vkCmdCopyBuffer(vkhCommandBuffer, vkhSourceBuffer, vkhDestinationBuffer, 1, &cmdCopy);
+
+    // stop recording the buffer
+    vkEndCommandBuffer(vkhCommandBuffer);
+
+    // prepare the command buffer submit info for the copy operation
+    VkSubmitInfo infoSubmitCopy = {};
+    infoSubmitCopy.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    // set the buffer to execute
+    infoSubmitCopy.commandBufferCount = 1;
+    infoSubmitCopy.pCommandBuffers = &vkhCommandBuffer;
+
+    // submit the queue for execution
+    vkQueueSubmit(qGraphicsQueue, 1, &infoSubmitCopy, VK_NULL_HANDLE);
+    // wait for the commands to finish
+    vkQueueWaitIdle(qGraphicsQueue);
+
+    // clean up the command buffer
+    vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool, 1, &vkhCommandBuffer);
+}
+
 
 // Get the graphics memory type with the desired properties.
 uint32_t GfxAPIVulkan::FindMemoryType(uint32_t flgTypeFilter, VkMemoryPropertyFlags flgProperties) {
