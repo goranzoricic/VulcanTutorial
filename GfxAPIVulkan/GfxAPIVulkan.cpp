@@ -1302,15 +1302,25 @@ void GfxAPIVulkan::DestroySemaphores() {
 void GfxAPIVulkan::CreateVertexBuffers() {
     // create the vertex buffer
     VkDeviceSize ctBufferSize = sizeof(avVertices[0]) * avVertices.size();
-    CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkhVertexBuffer, vkhBufferMemory);
 
+    // create a staging buffer - it is a source in a memory transfer operation, and is located on the host
+    VkBuffer vkhStagingBuffer;
+    VkDeviceMemory vkhStagingMemory;
+    CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkhStagingBuffer, vkhStagingMemory);
+    
     // to copy the vertex buffer values to GPU memory, it first needs to be mapped to CPU
     void *pMappedMemory;
-    vkMapMemory(vkdevLogicalDevice, vkhBufferMemory, 0, ctBufferSize, 0, &pMappedMemory);
+    vkMapMemory(vkdevLogicalDevice, vkhStagingMemory, 0, ctBufferSize, 0, &pMappedMemory);
     // copy the buffer to mapped memory
     memcpy(pMappedMemory, avVertices.data(), ctBufferSize);
     // unmap memory, let the GPU take over
-    vkUnmapMemory(vkdevLogicalDevice, vkhBufferMemory);
+    vkUnmapMemory(vkdevLogicalDevice, vkhStagingMemory);
+
+    // create the vertex buffer - it is located in device memory and is a memory transfer destination
+    CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkhVertexBuffer, vkhBufferMemory);
+
+    // copy staging buffer contents to the vertex buffer
+    CopyBuffer(vkhStagingBuffer, vkhVertexBuffer, ctBufferSize);
 }
 
 
@@ -1351,6 +1361,61 @@ void GfxAPIVulkan::CreateBuffer(VkDeviceSize ctSize, VkBufferUsageFlags flgBuffe
     // after a successfull allocation, bind the memory to the buffer
     vkBindBufferMemory(vkdevLogicalDevice, vkhBuffer, vkhMemory, 0);
 }
+
+
+// Copy memory from one buffer to the other.
+void GfxAPIVulkan::CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationBuffer, VkDeviceSize ctSize) {
+    // create a temporary command buffer
+    VkCommandBufferAllocateInfo infoCommandBuffer = {};
+    infoCommandBuffer.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    // it is a primary buffer
+    infoCommandBuffer.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    // it uses the same command pool - NOTE: it would be more optimal to create a new command pool for temp buffers
+    infoCommandBuffer.commandPool = vkhCommandPool;
+    // only one buffer will be allocated
+    infoCommandBuffer.commandBufferCount = 1;
+
+    // allocate teh buffer
+    VkCommandBuffer vkhCommandBuffer = {};
+    vkAllocateCommandBuffers(vkdevLogicalDevice, &infoCommandBuffer, &vkhCommandBuffer);
+
+    // start recording the command buffer
+    VkCommandBufferBeginInfo infoBegin = {};
+    infoBegin.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    // this buffer is only going to be submitted once
+    infoBegin.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    // start recording
+    vkBeginCommandBuffer(vkhCommandBuffer, &infoBegin);
+
+    // create the copy command - copies start from beggining, size is the size specified in the input arguments
+    VkBufferCopy cmdCopy = {};
+    cmdCopy.srcOffset = 0;
+    cmdCopy.dstOffset = 0;
+    cmdCopy.size = ctSize;
+
+    // run the copy command
+    vkCmdCopyBuffer(vkhCommandBuffer, vkhSourceBuffer, vkhDestinationBuffer, 1, &cmdCopy);
+
+    // stop recording the buffer
+    vkEndCommandBuffer(vkhCommandBuffer);
+
+    // prepare the command buffer submit info for the copy operation
+    VkSubmitInfo infoSubmitCopy = {};
+    infoSubmitCopy.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    // set the buffer to execute
+    infoSubmitCopy.commandBufferCount = 1;
+    infoSubmitCopy.pCommandBuffers = &vkhCommandBuffer;
+
+    // submit the queue for execution
+    vkQueueSubmit(qGraphicsQueue, 1, &infoSubmitCopy, VK_NULL_HANDLE);
+    // wait for the commands to finish
+    vkQueueWaitIdle(qGraphicsQueue);
+
+    // clean up the command buffer
+    vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool, 1, &vkhCommandBuffer);
+}
+
 
 // Get the graphics memory type with the desired properties.
 uint32_t GfxAPIVulkan::FindMemoryType(uint32_t flgTypeFilter, VkMemoryPropertyFlags flgProperties) {

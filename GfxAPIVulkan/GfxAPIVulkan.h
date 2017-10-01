@@ -136,6 +136,8 @@ private:
 
     // Create a buffer - vertex, transfer, index...
     void CreateBuffer(VkDeviceSize ctSize, VkBufferUsageFlags flgBufferUsage, VkMemoryPropertyFlags flagMemoryProperties, VkBuffer &vkhBuffer, VkDeviceMemory &vkhMemory);
+    // Copy memory from one buffer to the other.
+    void CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationBuffer, VkDeviceSize ctSize);
 
 private:
     // Handle to the vulkan instance.
