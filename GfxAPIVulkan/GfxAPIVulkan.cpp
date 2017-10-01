@@ -1258,9 +1258,14 @@ void GfxAPIVulkan::RecordCommandBuffers() {
         // issue the command to bind the graphics pipeline
         vkCmdBindPipeline(cbufCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkgpipePipeline);
 
+        // bind the vertex buffer
+        VkBuffer avkhBuffers[] = { vkhVertexBuffer };
+        VkDeviceSize actOffsets[] = { 0 };
+        vkCmdBindVertexBuffers(cbufCommandBuffer, 0, 1, avkhBuffers, actOffsets);
+
         // issue the draw command to draw three vertice
         // NOTE: the coordinates are hardcoded in the vertex shader
-        vkCmdDraw(cbufCommandBuffer, 3, 1, 0, 0);
+        vkCmdDraw(cbufCommandBuffer, static_cast<uint32_t>(avVertices.size()), 1, 0, 0);
 
         // issue the command to end the render pass
         vkCmdEndRenderPass(cbufCommandBuffer);
@@ -1296,7 +1301,7 @@ void GfxAPIVulkan::DestroySemaphores() {
 // Create vertex buffers.
 void GfxAPIVulkan::CreateVertexBuffers() {
     // describe the vertex buffer
-    VkBufferCreateInfo infoVertexBuffer;
+    VkBufferCreateInfo infoVertexBuffer = {};
     infoVertexBuffer.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     // set the size in bytes
     infoVertexBuffer.size = sizeof(avVertices[0]) * avVertices.size();
@@ -1311,11 +1316,11 @@ void GfxAPIVulkan::CreateVertexBuffers() {
     }
 
     // get the buffer's memory requirements
-    VkMemoryRequirements propsMemoryRequirements;
+    VkMemoryRequirements propsMemoryRequirements = {};
     vkGetBufferMemoryRequirements(vkdevLogicalDevice, vkhVertexBuffer, &propsMemoryRequirements);
 
     // describe the memory allocation
-    VkMemoryAllocateInfo infoBufferMemory;
+    VkMemoryAllocateInfo infoBufferMemory = {};
     infoBufferMemory.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     // how much memory to allocate
     infoBufferMemory.allocationSize = propsMemoryRequirements.size;
