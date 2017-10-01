@@ -143,6 +143,9 @@ bool GfxAPIVulkan::Destroy() {
 
     // destroy the vertex buffer
     vkDestroyBuffer(vkdevLogicalDevice, vkhVertexBuffer, nullptr);
+    // release memory used by the vertex buffer
+    vkFreeMemory(vkdevLogicalDevice, vkhBufferMemory, nullptr);
+
     // destroy semaphores
     DestroySemaphores();
     // destoy the command pool
@@ -1306,6 +1309,52 @@ void GfxAPIVulkan::CreateVertexBuffers() {
     if (vkCreateBuffer(vkdevLogicalDevice, &infoVertexBuffer, nullptr, &vkhVertexBuffer) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the vertex buffer");
     }
+
+    // get the buffer's memory requirements
+    VkMemoryRequirements propsMemoryRequirements;
+    vkGetBufferMemoryRequirements(vkdevLogicalDevice, vkhVertexBuffer, &propsMemoryRequirements);
+
+    // describe the memory allocation
+    VkMemoryAllocateInfo infoBufferMemory;
+    infoBufferMemory.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    // how much memory to allocate
+    infoBufferMemory.allocationSize = propsMemoryRequirements.size;
+    // find the appropriate memory type
+    infoBufferMemory.memoryTypeIndex = FindMemoryType(propsMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    // allocate the memory for the buffer
+    if (vkAllocateMemory(vkdevLogicalDevice, &infoBufferMemory, nullptr, &vkhBufferMemory) != VK_SUCCESS) {
+        throw std::runtime_error("Unable to allocate memory for the vertex buffer");
+    }
+
+    // after a successfull allocation, bind the memory to the buffer
+    vkBindBufferMemory(vkdevLogicalDevice, vkhVertexBuffer, vkhBufferMemory, 0);
+
+    // to copy the vertex buffer values to GPU memory, it first needs to be mapped to CPU
+    void *pMappedMemory;
+    vkMapMemory(vkdevLogicalDevice, vkhBufferMemory, 0, infoVertexBuffer.size, 0, &pMappedMemory);
+    // copy the buffer to mapped memory
+    memcpy(pMappedMemory, avVertices.data(), infoVertexBuffer.size);
+    // unmap memory, let the GPU take over
+    vkUnmapMemory(vkdevLogicalDevice, vkhBufferMemory);
+}
+
+// Get the graphics memory type with the desired properties.
+uint32_t GfxAPIVulkan::FindMemoryType(uint32_t flgTypeFilter, VkMemoryPropertyFlags flgProperties) {
+    // get all memory types for the physical device
+    VkPhysicalDeviceMemoryProperties propsDeviceMemoryProperties;
+    vkGetPhysicalDeviceMemoryProperties(vkdevPhysicalDevice, &propsDeviceMemoryProperties);
+
+    // go through all memory types an find the suitable one
+    for (uint32_t iMemoryType = 0; iMemoryType < propsDeviceMemoryProperties.memoryTypeCount; iMemoryType++) {
+        // if the type index matches the filter and memory type propeties match the requested ones
+        if ((flgTypeFilter & (1 << iMemoryType)) && (propsDeviceMemoryProperties.memoryTypes[iMemoryType].propertyFlags & flgProperties) == flgProperties) {
+            // return the memory type index
+            return iMemoryType;
+        }
+    }
+    // if the appropriate memory type wasn't found, throw an exception
+    throw std::runtime_error("Unable to find an appropriate memory type");
 }
 
 

@@ -20,7 +20,8 @@ private:
                     vkpassRenderPass(VK_NULL_HANDLE),
                     vkplPipelineLayout(VK_NULL_HANDLE),
                     vkgpipePipeline(VK_NULL_HANDLE),
-                    vkhVertexBuffer(VK_NULL_HANDLE)
+                    vkhVertexBuffer(VK_NULL_HANDLE),
+                    vkhBufferMemory(VK_NULL_HANDLE)
     {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
@@ -130,6 +131,8 @@ private:
 
     // Create vertex buffers.
     void CreateVertexBuffers();
+    // Get the graphics memory type with the desired properties.
+    uint32_t FindMemoryType(uint32_t flgTypeFilter, VkMemoryPropertyFlags flgProperties);
 
 private:
     // Handle to the vulkan instance.
@@ -197,5 +200,7 @@ private:
 
     // Vertex buffer holding the triangle's vertices.
     VkBuffer vkhVertexBuffer;
+    // Memory used by the vertex buffer.
+    VkDeviceMemory vkhBufferMemory;
 };
 
