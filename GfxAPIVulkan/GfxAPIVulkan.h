@@ -134,6 +134,9 @@ private:
     // Get the graphics memory type with the desired properties.
     uint32_t FindMemoryType(uint32_t flgTypeFilter, VkMemoryPropertyFlags flgProperties);
 
+    // Create a buffer - vertex, transfer, index...
+    void CreateBuffer(VkDeviceSize ctSize, VkBufferUsageFlags flgBufferUsage, VkMemoryPropertyFlags flagMemoryProperties, VkBuffer &vkhBuffer, VkDeviceMemory &vkhMemory);
+
 private:
     // Handle to the vulkan instance.
     VkInstance vkiInstance;

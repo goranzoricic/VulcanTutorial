@@ -1300,24 +1300,40 @@ void GfxAPIVulkan::DestroySemaphores() {
 
 // Create vertex buffers.
 void GfxAPIVulkan::CreateVertexBuffers() {
+    // create the vertex buffer
+    VkDeviceSize ctBufferSize = sizeof(avVertices[0]) * avVertices.size();
+    CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkhVertexBuffer, vkhBufferMemory);
+
+    // to copy the vertex buffer values to GPU memory, it first needs to be mapped to CPU
+    void *pMappedMemory;
+    vkMapMemory(vkdevLogicalDevice, vkhBufferMemory, 0, ctBufferSize, 0, &pMappedMemory);
+    // copy the buffer to mapped memory
+    memcpy(pMappedMemory, avVertices.data(), ctBufferSize);
+    // unmap memory, let the GPU take over
+    vkUnmapMemory(vkdevLogicalDevice, vkhBufferMemory);
+}
+
+
+// Create a buffer - vertex, transfer, index...
+void GfxAPIVulkan::CreateBuffer(VkDeviceSize ctSize, VkBufferUsageFlags flgBufferUsage, VkMemoryPropertyFlags flgMemoryProperties, VkBuffer &vkhBuffer, VkDeviceMemory &vkhMemory) {
     // describe the vertex buffer
-    VkBufferCreateInfo infoVertexBuffer = {};
-    infoVertexBuffer.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    VkBufferCreateInfo infoBuffer = {};
+    infoBuffer.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     // set the size in bytes
-    infoVertexBuffer.size = sizeof(avVertices[0]) * avVertices.size();
+    infoBuffer.size = ctSize;
     // mark that this describes a vertex buffer
-    infoVertexBuffer.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    infoBuffer.usage = flgBufferUsage;
     // mark that the buffer is excluseive to one queue and not shared between multiple queues
-    infoVertexBuffer.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    infoBuffer.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     // create the vertex buffer
-    if (vkCreateBuffer(vkdevLogicalDevice, &infoVertexBuffer, nullptr, &vkhVertexBuffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(vkdevLogicalDevice, &infoBuffer, nullptr, &vkhBuffer) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the vertex buffer");
     }
 
     // get the buffer's memory requirements
     VkMemoryRequirements propsMemoryRequirements = {};
-    vkGetBufferMemoryRequirements(vkdevLogicalDevice, vkhVertexBuffer, &propsMemoryRequirements);
+    vkGetBufferMemoryRequirements(vkdevLogicalDevice, vkhBuffer, &propsMemoryRequirements);
 
     // describe the memory allocation
     VkMemoryAllocateInfo infoBufferMemory = {};
@@ -1325,23 +1341,15 @@ void GfxAPIVulkan::CreateVertexBuffers() {
     // how much memory to allocate
     infoBufferMemory.allocationSize = propsMemoryRequirements.size;
     // find the appropriate memory type
-    infoBufferMemory.memoryTypeIndex = FindMemoryType(propsMemoryRequirements.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+    infoBufferMemory.memoryTypeIndex = FindMemoryType(propsMemoryRequirements.memoryTypeBits, flgMemoryProperties);
 
     // allocate the memory for the buffer
-    if (vkAllocateMemory(vkdevLogicalDevice, &infoBufferMemory, nullptr, &vkhBufferMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(vkdevLogicalDevice, &infoBufferMemory, nullptr, &vkhMemory) != VK_SUCCESS) {
         throw std::runtime_error("Unable to allocate memory for the vertex buffer");
     }
 
     // after a successfull allocation, bind the memory to the buffer
-    vkBindBufferMemory(vkdevLogicalDevice, vkhVertexBuffer, vkhBufferMemory, 0);
-
-    // to copy the vertex buffer values to GPU memory, it first needs to be mapped to CPU
-    void *pMappedMemory;
-    vkMapMemory(vkdevLogicalDevice, vkhBufferMemory, 0, infoVertexBuffer.size, 0, &pMappedMemory);
-    // copy the buffer to mapped memory
-    memcpy(pMappedMemory, avVertices.data(), infoVertexBuffer.size);
-    // unmap memory, let the GPU take over
-    vkUnmapMemory(vkdevLogicalDevice, vkhBufferMemory);
+    vkBindBufferMemory(vkdevLogicalDevice, vkhBuffer, vkhMemory, 0);
 }
 
 // Get the graphics memory type with the desired properties.
