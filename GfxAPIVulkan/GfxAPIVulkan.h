@@ -51,6 +51,10 @@ private:
     // Called when the application's window is resized.
     void OnWindowResized(GLFWwindow* window, uint32_t width, uint32_t height);
 
+    // Update the uniform buffer - MVP matrices.
+    // The tutorial implementation rotates the object 90 degrees per second.
+    void UpdateUniformBuffer();
+
 private:
     // Initialize the application window.
     void CreateWindow(uint32_t dimWidth, uint32_t dimHeight);
@@ -147,6 +151,8 @@ private:
     void CreateVertexBuffers();
     // Create index buffer.
     void CreateIndexBuffers();
+    // Create uniform buffer.
+    void CreateUniformBuffers();
 
     // Get the graphics memory type with the desired properties.
     uint32_t FindMemoryType(uint32_t flgTypeFilter, VkMemoryPropertyFlags flgProperties);
@@ -233,5 +239,10 @@ private:
     VkBuffer vkhIndexBuffer;
     // Memory used by the index buffer.
     VkDeviceMemory vkhIndexBufferMemory;
+
+    // Uniform buffer holding the order of vertices in triangles.
+    VkBuffer vkhUniformBuffer;
+    // Memory used by the uniform buffer.
+    VkDeviceMemory vkhUniformBufferMemory;
 };
 
