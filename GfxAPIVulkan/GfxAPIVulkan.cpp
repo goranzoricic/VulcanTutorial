@@ -120,6 +120,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateImageViews();
     // create the render pass
     CreateRenderPass();
+    // create descriptor set layout
+    CreateDescriptorSetLayout();
     // create the graphics pipeline
     CreateGraphicsPipeline();
     // create the framebuffers
@@ -151,7 +153,9 @@ bool GfxAPIVulkan::Destroy() {
 
     // destroy the swap chain
     DestroySwapChain();
-
+    
+    // destroy the descriptor set layout
+    vkDestroyDescriptorSetLayout(vkdevLogicalDevice, vkhDescriptorSetLayout, nullptr);
     // destroy the vertex buffer
     vkDestroyBuffer(vkdevLogicalDevice, vkhVertexBuffer, nullptr);
     // release memory used by the vertex buffer
@@ -196,6 +200,8 @@ void GfxAPIVulkan::InitializeSwapChain() {
     CreateImageViews();
     // create the render pass
     CreateRenderPass();
+    // create descriptor set layout
+    CreateDescriptorSetLayout();
     // create the graphics pipeline
     CreateGraphicsPipeline();
     // create the framebuffers
@@ -961,6 +967,32 @@ void GfxAPIVulkan::CreateRenderPass() {
 }
 
 
+// Create descriptor sets - used to bind uniforms to shaders.
+void GfxAPIVulkan::CreateDescriptorSetLayout() {
+    // describe the descriptor set binding
+    VkDescriptorSetLayoutBinding infoDescriptorSetBinding = {};
+    // set the binding index (defined in the shader)
+    infoDescriptorSetBinding.binding = 0;
+    // this describes a uniform buffer
+    infoDescriptorSetBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // it contains a single uniform buffer object
+    infoDescriptorSetBinding.descriptorCount = 1;
+    // the descriptor set is meant for the vertex program
+    infoDescriptorSetBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    // describe the descriptor set layout
+    VkDescriptorSetLayoutCreateInfo infoDescriptorSetLayout = {};
+    infoDescriptorSetLayout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    // set the binding description
+    infoDescriptorSetLayout.bindingCount = 1;
+    infoDescriptorSetLayout.pBindings = &infoDescriptorSetBinding;
+
+    // create the layout
+    if (vkCreateDescriptorSetLayout(vkdevLogicalDevice, &infoDescriptorSetLayout, nullptr, &vkhDescriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error("Unable to create the descriptor set layout");
+    }
+}
+
 // Create the graphics pipeline.
 void GfxAPIVulkan::CreateGraphicsPipeline() {
 
@@ -1107,8 +1139,10 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	// describe the graphics pipeline layout
 	VkPipelineLayoutCreateInfo ciPipelineLayout = {};
 	ciPipelineLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	ciPipelineLayout.setLayoutCount = 0;
-	ciPipelineLayout.pSetLayouts = nullptr;
+    // bind the descriptor set layout
+	ciPipelineLayout.setLayoutCount = 1;
+	ciPipelineLayout.pSetLayouts = &vkhDescriptorSetLayout;
+    // not using push constants at the moment
 	ciPipelineLayout.pushConstantRangeCount = 0;
 	ciPipelineLayout.pPushConstantRanges = 0;
 

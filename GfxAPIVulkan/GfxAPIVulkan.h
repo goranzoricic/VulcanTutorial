@@ -6,6 +6,17 @@ struct GLFWwindow;
 
 // Implementation of Vulkan graphics API.
 class GfxAPIVulkan : public GfxAPI {
+private:
+    // Uniform buffer description.
+    struct UniformBufferObject {
+        // Model transform.
+        glm::mat4 tModel;
+        // View transform.
+        glm::mat4 tView;
+        // Projection transform.
+        glm::mat4 tProjection;
+    };
+
 public:
     static void GfxAPIVulkan::OnWindowResizedCallback(GLFWwindow* window, int width, int height);
 
@@ -18,6 +29,7 @@ private:
                     qPresentationQueue(VK_NULL_HANDLE),
                     swcSwapChain(VK_NULL_HANDLE),
                     vkpassRenderPass(VK_NULL_HANDLE),
+                    vkhDescriptorSetLayout(VK_NULL_HANDLE),
                     vkplPipelineLayout(VK_NULL_HANDLE),
                     vkgpipePipeline(VK_NULL_HANDLE),
                     vkhVertexBuffer(VK_NULL_HANDLE),
@@ -108,6 +120,8 @@ private:
 
     // Create the render pass.
 	void CreateRenderPass();
+    // Create descriptor sets - used to bind uniforms to shaders.
+    void CreateDescriptorSetLayout();
 	// Create the graphics pipeline.
 	void CreateGraphicsPipeline();
 
@@ -188,7 +202,11 @@ private:
 
 	// Render pass applied to render objects.
 	VkRenderPass vkpassRenderPass;
-	// Layout of the graphics pipeline.
+	
+    // Descriptor set layout for uniform buffers.
+    VkDescriptorSetLayout vkhDescriptorSetLayout;
+
+    // Layout of the graphics pipeline.
 	VkPipelineLayout vkplPipelineLayout;
     // Graphics pipeline.
     VkPipeline vkgpipePipeline;
