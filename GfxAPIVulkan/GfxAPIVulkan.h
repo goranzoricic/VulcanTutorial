@@ -6,6 +6,17 @@ struct GLFWwindow;
 
 // Implementation of Vulkan graphics API.
 class GfxAPIVulkan : public GfxAPI {
+private:
+    // Uniform buffer description.
+    struct UniformBufferObject {
+        // Model transform.
+        glm::mat4 tModel;
+        // View transform.
+        glm::mat4 tView;
+        // Projection transform.
+        glm::mat4 tProjection;
+    };
+
 public:
     static void GfxAPIVulkan::OnWindowResizedCallback(GLFWwindow* window, int width, int height);
 
@@ -18,10 +29,12 @@ private:
                     qPresentationQueue(VK_NULL_HANDLE),
                     swcSwapChain(VK_NULL_HANDLE),
                     vkpassRenderPass(VK_NULL_HANDLE),
+                    vkhDescriptorSetLayout(VK_NULL_HANDLE),
                     vkplPipelineLayout(VK_NULL_HANDLE),
                     vkgpipePipeline(VK_NULL_HANDLE),
                     vkhVertexBuffer(VK_NULL_HANDLE),
-                    vkhVertexBufferMemory(VK_NULL_HANDLE)
+                    vkhVertexBufferMemory(VK_NULL_HANDLE),
+                    vkhDescriptorPool(VK_NULL_HANDLE)
     {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
@@ -38,6 +51,10 @@ public:
 private:
     // Called when the application's window is resized.
     void OnWindowResized(GLFWwindow* window, uint32_t width, uint32_t height);
+
+    // Update the uniform buffer - MVP matrices.
+    // The tutorial implementation rotates the object 90 degrees per second.
+    void UpdateUniformBuffer();
 
 private:
     // Initialize the application window.
@@ -108,6 +125,8 @@ private:
 
     // Create the render pass.
 	void CreateRenderPass();
+    // Create descriptor sets - used to bind uniforms to shaders.
+    void CreateDescriptorSetLayout();
 	// Create the graphics pipeline.
 	void CreateGraphicsPipeline();
 
@@ -133,6 +152,13 @@ private:
     void CreateVertexBuffers();
     // Create index buffer.
     void CreateIndexBuffers();
+    // Create uniform buffer.
+    void CreateUniformBuffers();
+
+    // Create the descriptor pool.
+    void CreateDescriptorPool();
+    // Create the descriptor set.
+    void CreateDescriptorSet();
 
     // Get the graphics memory type with the desired properties.
     uint32_t FindMemoryType(uint32_t flgTypeFilter, VkMemoryPropertyFlags flgProperties);
@@ -188,7 +214,11 @@ private:
 
 	// Render pass applied to render objects.
 	VkRenderPass vkpassRenderPass;
-	// Layout of the graphics pipeline.
+	
+    // Descriptor set layout for uniform buffers.
+    VkDescriptorSetLayout vkhDescriptorSetLayout;
+
+    // Layout of the graphics pipeline.
 	VkPipelineLayout vkplPipelineLayout;
     // Graphics pipeline.
     VkPipeline vkgpipePipeline;
@@ -215,5 +245,15 @@ private:
     VkBuffer vkhIndexBuffer;
     // Memory used by the index buffer.
     VkDeviceMemory vkhIndexBufferMemory;
+
+    // Uniform buffer holding the order of vertices in triangles.
+    VkBuffer vkhUniformBuffer;
+    // Memory used by the uniform buffer.
+    VkDeviceMemory vkhUniformBufferMemory;
+
+    // Descriptor pool used to allocate descriptor sets.
+    VkDescriptorPool vkhDescriptorPool;
+    // Descriptor set that will hold the uniform buffer.
+    VkDescriptorSet vkhDescriptorSet;
 };
 

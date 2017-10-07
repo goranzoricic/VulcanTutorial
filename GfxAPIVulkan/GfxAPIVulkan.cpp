@@ -120,6 +120,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateImageViews();
     // create the render pass
     CreateRenderPass();
+    // create descriptor set layout
+    CreateDescriptorSetLayout();
     // create the graphics pipeline
     CreateGraphicsPipeline();
     // create the framebuffers
@@ -130,6 +132,12 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateVertexBuffers();
     // create the index buffer
     CreateIndexBuffers();
+    // create uniform buffer
+    CreateUniformBuffers();
+    // create the descriptor pool
+    CreateDescriptorPool();
+    // create the descriptor set
+    CreateDescriptorSet();
 
     // allocate command buffers
     CreateCommandBuffers();
@@ -151,14 +159,24 @@ bool GfxAPIVulkan::Destroy() {
 
     // destroy the swap chain
     DestroySwapChain();
+    
+    // destroy the desctiptor pool
+    vkDestroyDescriptorPool(vkdevLogicalDevice, vkhDescriptorPool, nullptr);
+    // destroy the descriptor set layout
+    vkDestroyDescriptorSetLayout(vkdevLogicalDevice, vkhDescriptorSetLayout, nullptr);
+    // destroy the uniform buffer
+    vkDestroyBuffer(vkdevLogicalDevice, vkhUniformBuffer, nullptr);
+    // release memory used by the uniform buffer
+    vkFreeMemory(vkdevLogicalDevice, vkhUniformBufferMemory, nullptr);
 
     // destroy the vertex buffer
     vkDestroyBuffer(vkdevLogicalDevice, vkhVertexBuffer, nullptr);
     // release memory used by the vertex buffer
     vkFreeMemory(vkdevLogicalDevice, vkhVertexBufferMemory, nullptr);
-    // destroy the vertex buffer
+
+    // destroy the uniform buffer
     vkDestroyBuffer(vkdevLogicalDevice, vkhIndexBuffer, nullptr);
-    // release memory used by the vertex buffer
+    // release memory used by the uniform buffer
     vkFreeMemory(vkdevLogicalDevice, vkhIndexBufferMemory, nullptr);
 
     // destroy semaphores
@@ -196,6 +214,8 @@ void GfxAPIVulkan::InitializeSwapChain() {
     CreateImageViews();
     // create the render pass
     CreateRenderPass();
+    // create descriptor set layout
+    CreateDescriptorSetLayout();
     // create the graphics pipeline
     CreateGraphicsPipeline();
     // create the framebuffers
@@ -961,6 +981,32 @@ void GfxAPIVulkan::CreateRenderPass() {
 }
 
 
+// Create descriptor sets - used to bind uniforms to shaders.
+void GfxAPIVulkan::CreateDescriptorSetLayout() {
+    // describe the descriptor set binding
+    VkDescriptorSetLayoutBinding infoDescriptorSetBinding = {};
+    // set the binding index (defined in the shader)
+    infoDescriptorSetBinding.binding = 0;
+    // this describes a uniform buffer
+    infoDescriptorSetBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // it contains a single uniform buffer object
+    infoDescriptorSetBinding.descriptorCount = 1;
+    // the descriptor set is meant for the vertex program
+    infoDescriptorSetBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    // describe the descriptor set layout
+    VkDescriptorSetLayoutCreateInfo infoDescriptorSetLayout = {};
+    infoDescriptorSetLayout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    // set the binding description
+    infoDescriptorSetLayout.bindingCount = 1;
+    infoDescriptorSetLayout.pBindings = &infoDescriptorSetBinding;
+
+    // create the layout
+    if (vkCreateDescriptorSetLayout(vkdevLogicalDevice, &infoDescriptorSetLayout, nullptr, &vkhDescriptorSetLayout) != VK_SUCCESS) {
+        throw std::runtime_error("Unable to create the descriptor set layout");
+    }
+}
+
 // Create the graphics pipeline.
 void GfxAPIVulkan::CreateGraphicsPipeline() {
 
@@ -1051,7 +1097,7 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	// enable back face culling
 	ciRasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 	// forward facing faces use clockwise vetex winding
-	ciRasterizationState.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	ciRasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	// no depth bias
 	ciRasterizationState.depthBiasEnable = VK_FALSE;
 	ciRasterizationState.depthBiasConstantFactor = 0.0f;
@@ -1107,8 +1153,10 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	// describe the graphics pipeline layout
 	VkPipelineLayoutCreateInfo ciPipelineLayout = {};
 	ciPipelineLayout.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	ciPipelineLayout.setLayoutCount = 0;
-	ciPipelineLayout.pSetLayouts = nullptr;
+    // bind the descriptor set layout
+	ciPipelineLayout.setLayoutCount = 1;
+	ciPipelineLayout.pSetLayouts = &vkhDescriptorSetLayout;
+    // not using push constants at the moment
 	ciPipelineLayout.pushConstantRangeCount = 0;
 	ciPipelineLayout.pPushConstantRanges = 0;
 
@@ -1280,6 +1328,9 @@ void GfxAPIVulkan::RecordCommandBuffers() {
         // bind the index buffer
         vkCmdBindIndexBuffer(cbufCommandBuffer, vkhIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
+        // bind the descriptor sets
+        vkCmdBindDescriptorSets(cbufCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkplPipelineLayout, 0, 1, &vkhDescriptorSet, 0, nullptr);
+
         // issue the draw command to draw index buffers
         vkCmdDrawIndexed(cbufCommandBuffer, static_cast<uint32_t>(aiIndices.size()), 1, 0, 0, 0);
 
@@ -1373,6 +1424,88 @@ void GfxAPIVulkan::CreateIndexBuffers() {
     vkDestroyBuffer(vkdevLogicalDevice, vkhStagingBuffer, nullptr);
     // free buffer memory
     vkFreeMemory(vkdevLogicalDevice, vkhStagingMemory, nullptr);
+}
+
+// Create uniform buffer.
+void GfxAPIVulkan::CreateUniformBuffers() {
+    // get the uniform buffer size
+    VkDeviceSize ctBufferSize = sizeof(UniformBufferObject);
+    // create the uniform buffer
+    CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkhUniformBuffer, vkhUniformBufferMemory);
+}
+
+
+// create the descriptor pool
+void GfxAPIVulkan::CreateDescriptorPool() {
+    // describe the descriptors that go into this pool
+    VkDescriptorPoolSize infoPoolSize = {};
+    // it's the pool for uniform buffer descriptors
+    infoPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // it holds one descriptor
+    infoPoolSize.descriptorCount = 1;
+
+    // describe the descriptor pool
+    VkDescriptorPoolCreateInfo infoDescriptorPool = {};
+    infoDescriptorPool.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    // this descriptor pool has one pool size info
+    infoDescriptorPool.poolSizeCount = 1;
+    infoDescriptorPool.pPoolSizes = &infoPoolSize;
+    // maximuma of one descriptor sets will be allocated
+    infoDescriptorPool.maxSets = 1;
+
+    // create the descriptor pool
+    if (vkCreateDescriptorPool(vkdevLogicalDevice, &infoDescriptorPool, nullptr, &vkhDescriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the descriptor pool");
+    }
+}
+
+
+// Create the descriptor set.
+void GfxAPIVulkan::CreateDescriptorSet() {
+    // prepare the layouts for binding
+    VkDescriptorSetLayout avkhLayouts[] = { vkhDescriptorSetLayout };
+
+    //describe the descriptor set allocation
+    VkDescriptorSetAllocateInfo infoDescriptorSetAllocation = {};
+    infoDescriptorSetAllocation.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    // bind the set layout
+    infoDescriptorSetAllocation.descriptorSetCount = 1;
+    infoDescriptorSetAllocation.pSetLayouts = avkhLayouts;
+    // bind the descriptor pool
+    infoDescriptorSetAllocation.descriptorPool = vkhDescriptorPool;
+
+    // create the descriptor set
+    if (vkAllocateDescriptorSets(vkdevLogicalDevice, &infoDescriptorSetAllocation, &vkhDescriptorSet) != VK_SUCCESS) {
+        throw std::runtime_error("Unable to allocate the descriptor set");
+    }
+
+    // use a descriptor to describe the uniform buffer
+    VkDescriptorBufferInfo infoUniformBuffer = {};
+    // bind the uniform buffer
+    infoUniformBuffer.buffer = vkhUniformBuffer;
+    // start at the beggining
+    infoUniformBuffer.offset = 0;
+    // size is equal to the buffer object's
+    infoUniformBuffer.range = sizeof(UniformBufferObject);
+
+    // describe how to update the descriptor set
+    VkWriteDescriptorSet infoUpdateDescriptorSet = {};
+    infoUpdateDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    // mark the set tu update
+    infoUpdateDescriptorSet.dstSet = vkhDescriptorSet;
+    // set the shader binding
+    infoUpdateDescriptorSet.dstBinding = 0;
+    // the descriptor doesn't describe an array
+    infoUpdateDescriptorSet.dstArrayElement = 0;
+    // this descriptor describes an uniform buffer
+    infoUpdateDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // it holds one descriptor
+    infoUpdateDescriptorSet.descriptorCount = 1;
+    // bind the buffer info
+    infoUpdateDescriptorSet.pBufferInfo = &infoUniformBuffer;
+
+    // apply updates to the descriptor
+    vkUpdateDescriptorSets(vkdevLogicalDevice, 1, &infoUpdateDescriptorSet, 0, nullptr);
 }
 
 
@@ -1496,8 +1629,41 @@ void GfxAPIVulkan::OnWindowResized(GLFWwindow* window, uint32_t width, uint32_t 
     InitializeSwapChain();
 }
 
+// Update the uniform buffer - MVP matrices.
+// The tutorial implementation rotates the object 90 degrees per second.
+void GfxAPIVulkan::UpdateUniformBuffer() {
+    // get the start time in milliseconds, once the first time this function is executed
+    static auto tmStartTime = std::chrono::high_resolution_clock::now();
+
+    // get the current time
+    auto tmCurrentTime = std::chrono::high_resolution_clock::now();
+    float tmElapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(tmCurrentTime - tmStartTime).count() / 1000.f;
+
+    // genetate the matrices
+    UniformBufferObject uboUniforms = {};
+    // calculate the model transform
+    uboUniforms.tModel = glm::rotate(glm::mat4(1.0f), tmElapsedTime * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    // calculate the view transform
+    uboUniforms.tView = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    // calculate the prijection transform
+    uboUniforms.tProjection = glm::perspective(glm::radians(45.0f), sexExtent.width / (float) sexExtent.height, 0.1f, 10.0f);
+    // correct for the difference between OpenGL and Vulkan regarding the direction of the Y clip coordinate axis
+    uboUniforms.tProjection[1][1] *= -1;
+
+    // to copy the uniform buffer values to GPU memory, it first needs to be mapped to CPU
+    void *pMappedMemory;
+    vkMapMemory(vkdevLogicalDevice, vkhUniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &pMappedMemory);
+    // copy the buffer to mapped memory
+    memcpy(pMappedMemory, &uboUniforms, sizeof(UniformBufferObject));
+    // unmap memory, let the GPU take over
+    vkUnmapMemory(vkdevLogicalDevice, vkhUniformBufferMemory);
+}
+
 // Render a frame.
 void GfxAPIVulkan::Render() {
+    // update model, view and perspective matrices
+    UpdateUniformBuffer();
+
     // obtain a target image from the swap chain
     // setting max uint64 as the timeout (in nanoseconds) disables the timeout
     // when the image becomes available the syncImageAvailable semaphore will be signaled
