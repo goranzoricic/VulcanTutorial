@@ -477,7 +477,7 @@ void GfxAPIVulkan::SetupValidationErrorCallback() {
 // Destroy the validation callbacks (on GfxAPIVulkan end)
 void GfxAPIVulkan::DestroyValidationErrorCallback() {
     // if validation layers are not enable, don't try to set up the callback
-    if (Options::Get().ShouldUseValidationLayers()) {
+    if (!Options::Get().ShouldUseValidationLayers()) {
         return;
     }
     // get the pointer to the destroy function
