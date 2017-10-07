@@ -134,6 +134,10 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateIndexBuffers();
     // create uniform buffer
     CreateUniformBuffers();
+    // create the descriptor pool
+    CreateDescriptorPool();
+    // create the descriptor set
+    CreateDescriptorSet();
 
     // allocate command buffers
     CreateCommandBuffers();
@@ -156,6 +160,8 @@ bool GfxAPIVulkan::Destroy() {
     // destroy the swap chain
     DestroySwapChain();
     
+    // destroy the desctiptor pool
+    vkDestroyDescriptorPool(vkdevLogicalDevice, vkhDescriptorPool, nullptr);
     // destroy the descriptor set layout
     vkDestroyDescriptorSetLayout(vkdevLogicalDevice, vkhDescriptorSetLayout, nullptr);
     // destroy the uniform buffer
@@ -1091,7 +1097,7 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	// enable back face culling
 	ciRasterizationState.cullMode = VK_CULL_MODE_BACK_BIT;
 	// forward facing faces use clockwise vetex winding
-	ciRasterizationState.frontFace = VK_FRONT_FACE_CLOCKWISE;
+	ciRasterizationState.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
 	// no depth bias
 	ciRasterizationState.depthBiasEnable = VK_FALSE;
 	ciRasterizationState.depthBiasConstantFactor = 0.0f;
@@ -1322,6 +1328,9 @@ void GfxAPIVulkan::RecordCommandBuffers() {
         // bind the index buffer
         vkCmdBindIndexBuffer(cbufCommandBuffer, vkhIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
+        // bind the descriptor sets
+        vkCmdBindDescriptorSets(cbufCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkplPipelineLayout, 0, 1, &vkhDescriptorSet, 0, nullptr);
+
         // issue the draw command to draw index buffers
         vkCmdDrawIndexed(cbufCommandBuffer, static_cast<uint32_t>(aiIndices.size()), 1, 0, 0, 0);
 
@@ -1425,6 +1434,79 @@ void GfxAPIVulkan::CreateUniformBuffers() {
     CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkhUniformBuffer, vkhUniformBufferMemory);
 }
 
+
+// create the descriptor pool
+void GfxAPIVulkan::CreateDescriptorPool() {
+    // describe the descriptors that go into this pool
+    VkDescriptorPoolSize infoPoolSize = {};
+    // it's the pool for uniform buffer descriptors
+    infoPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // it holds one descriptor
+    infoPoolSize.descriptorCount = 1;
+
+    // describe the descriptor pool
+    VkDescriptorPoolCreateInfo infoDescriptorPool = {};
+    infoDescriptorPool.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+    // this descriptor pool has one pool size info
+    infoDescriptorPool.poolSizeCount = 1;
+    infoDescriptorPool.pPoolSizes = &infoPoolSize;
+    // maximuma of one descriptor sets will be allocated
+    infoDescriptorPool.maxSets = 1;
+
+    // create the descriptor pool
+    if (vkCreateDescriptorPool(vkdevLogicalDevice, &infoDescriptorPool, nullptr, &vkhDescriptorPool) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the descriptor pool");
+    }
+}
+
+
+// Create the descriptor set.
+void GfxAPIVulkan::CreateDescriptorSet() {
+    // prepare the layouts for binding
+    VkDescriptorSetLayout avkhLayouts[] = { vkhDescriptorSetLayout };
+
+    //describe the descriptor set allocation
+    VkDescriptorSetAllocateInfo infoDescriptorSetAllocation = {};
+    infoDescriptorSetAllocation.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+    // bind the set layout
+    infoDescriptorSetAllocation.descriptorSetCount = 1;
+    infoDescriptorSetAllocation.pSetLayouts = avkhLayouts;
+    // bind the descriptor pool
+    infoDescriptorSetAllocation.descriptorPool = vkhDescriptorPool;
+
+    // create the descriptor set
+    if (vkAllocateDescriptorSets(vkdevLogicalDevice, &infoDescriptorSetAllocation, &vkhDescriptorSet) != VK_SUCCESS) {
+        throw std::runtime_error("Unable to allocate the descriptor set");
+    }
+
+    // use a descriptor to describe the uniform buffer
+    VkDescriptorBufferInfo infoUniformBuffer = {};
+    // bind the uniform buffer
+    infoUniformBuffer.buffer = vkhUniformBuffer;
+    // start at the beggining
+    infoUniformBuffer.offset = 0;
+    // size is equal to the buffer object's
+    infoUniformBuffer.range = sizeof(UniformBufferObject);
+
+    // describe how to update the descriptor set
+    VkWriteDescriptorSet infoUpdateDescriptorSet = {};
+    infoUpdateDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    // mark the set tu update
+    infoUpdateDescriptorSet.dstSet = vkhDescriptorSet;
+    // set the shader binding
+    infoUpdateDescriptorSet.dstBinding = 0;
+    // the descriptor doesn't describe an array
+    infoUpdateDescriptorSet.dstArrayElement = 0;
+    // this descriptor describes an uniform buffer
+    infoUpdateDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // it holds one descriptor
+    infoUpdateDescriptorSet.descriptorCount = 1;
+    // bind the buffer info
+    infoUpdateDescriptorSet.pBufferInfo = &infoUniformBuffer;
+
+    // apply updates to the descriptor
+    vkUpdateDescriptorSets(vkdevLogicalDevice, 1, &infoUpdateDescriptorSet, 0, nullptr);
+}
 
 
 // Create a buffer - vertex, transfer, index...

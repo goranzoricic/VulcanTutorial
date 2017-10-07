@@ -33,7 +33,8 @@ private:
                     vkplPipelineLayout(VK_NULL_HANDLE),
                     vkgpipePipeline(VK_NULL_HANDLE),
                     vkhVertexBuffer(VK_NULL_HANDLE),
-                    vkhVertexBufferMemory(VK_NULL_HANDLE)
+                    vkhVertexBufferMemory(VK_NULL_HANDLE),
+                    vkhDescriptorPool(VK_NULL_HANDLE)
     {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
@@ -154,6 +155,11 @@ private:
     // Create uniform buffer.
     void CreateUniformBuffers();
 
+    // Create the descriptor pool.
+    void CreateDescriptorPool();
+    // Create the descriptor set.
+    void CreateDescriptorSet();
+
     // Get the graphics memory type with the desired properties.
     uint32_t FindMemoryType(uint32_t flgTypeFilter, VkMemoryPropertyFlags flgProperties);
 
@@ -244,5 +250,10 @@ private:
     VkBuffer vkhUniformBuffer;
     // Memory used by the uniform buffer.
     VkDeviceMemory vkhUniformBufferMemory;
+
+    // Descriptor pool used to allocate descriptor sets.
+    VkDescriptorPool vkhDescriptorPool;
+    // Descriptor set that will hold the uniform buffer.
+    VkDescriptorSet vkhDescriptorSet;
 };
 
