@@ -148,6 +148,11 @@ private:
     // Delete the semaphores.
     void DestroySemaphores();
 
+    // Create a texture.
+    void CreateTextureImage();
+    // Create an image.
+    void CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat fmtFormat, VkImageTiling imtTiling, VkImageUsageFlags flagUsage, VkMemoryPropertyFlags flagMemoryProperties, VkImage &vkhImage, VkDeviceMemory &vkhMemory);
+
     // Create vertex buffer.
     void CreateVertexBuffers();
     // Create index buffer.
@@ -240,6 +245,11 @@ private:
     VkBuffer vkhVertexBuffer;
     // Memory used by the vertex buffer.
     VkDeviceMemory vkhVertexBufferMemory;
+
+    // Image buffer holding the order of vertices in triangles.
+    VkImage vkhImageData;
+    // Memory used by the Image buffer.
+    VkDeviceMemory vkhImageMemory;
 
     // Index buffer holding the order of vertices in triangles.
     VkBuffer vkhIndexBuffer;

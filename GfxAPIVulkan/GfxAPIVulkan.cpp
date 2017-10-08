@@ -130,6 +130,10 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateFramebuffers();
     // create the command pool
     CreateCommandPool();
+
+    // create a texture
+    CreateTextureImage();
+
     // create the vertex buffer
     CreateVertexBuffers();
     // create the index buffer
@@ -1366,6 +1370,94 @@ void GfxAPIVulkan::DestroySemaphores() {
     vkDestroySemaphore(vkdevLogicalDevice, syncRender, nullptr);
 }
 
+
+// Create a texture.
+void GfxAPIVulkan::CreateTextureImage() {
+    // load the image ising the stb library
+    int dimWidth, dimHeight, ctChannels;
+    stbi_uc *imgRawData = stbi_load("d:/Work/VulcanTutorial/Shaders/texture.jpg", &dimWidth, &dimHeight, &ctChannels, STBI_rgb_alpha);
+
+    // if the image failed to load, throw an exception
+    if (!imgRawData) {
+        throw std::runtime_error("Failed to load the texture.");
+    }
+
+    // image is four channels per pixel
+    VkDeviceSize ctImageSize = dimWidth * dimHeight * 4;
+
+    // create a staging buffer - it is a source in a memory transfer operation, and is located on the host
+    VkBuffer vkhStagingBuffer;
+    VkDeviceMemory vkhStagingMemory;
+    CreateBuffer(ctImageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkhStagingBuffer, vkhStagingMemory);
+
+    // to copy the image values to GPU memory, it first needs to be mapped to CPU
+    void *pMappedMemory;
+    vkMapMemory(vkdevLogicalDevice, vkhStagingMemory, 0, ctImageSize, 0, &pMappedMemory);
+    // copy the buffer to mapped memory
+    memcpy(pMappedMemory, imgRawData, ctImageSize);
+    // unmap memory, let the GPU take over
+    vkUnmapMemory(vkdevLogicalDevice, vkhStagingMemory);
+
+    // release texture memory
+    stbi_image_free(imgRawData);
+
+    CreateImage(dimWidth, dimHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkhImageData, vkhImageMemory);
+}
+
+
+// Create an image.
+void GfxAPIVulkan::CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat fmtFormat, VkImageTiling imtTiling, VkImageUsageFlags flagUsage, VkMemoryPropertyFlags flagMemoryProperties, VkImage &vkhImage, VkDeviceMemory &vkhMemory) {
+    // describe the image
+    VkImageCreateInfo infoImage = {};
+    infoImage.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    // set image dimensions
+    infoImage.extent.width = dimWidth;
+    infoImage.extent.height = dimHeight;
+    infoImage.extent.depth = 1;
+    // no mipmaps
+    infoImage.mipLevels = 1;
+    // not an image array
+    infoImage.arrayLayers = 1;
+    // set the image format
+    infoImage.format = fmtFormat;
+    // use the optimal tiling (won't be able to directly access texels)
+    infoImage.tiling = imtTiling;
+    // set the initial layout - not needed to preserve original pixels after transfer
+    infoImage.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // image will be used as a target for memory transfer and to sample from in the shader
+    infoImage.usage = flagUsage;
+    // it will be used by only one queue family (graphics)
+    infoImage.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    // no multisampling
+    infoImage.samples = VK_SAMPLE_COUNT_1_BIT;
+    // default flags
+    infoImage.flags = 0;
+
+    // create the image
+    if (vkCreateImage(vkdevLogicalDevice, &infoImage, nullptr, &vkhImage) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the image");
+    }
+
+    // get the buffer's memory requirements
+    VkMemoryRequirements propsMemoryRequirements = {};
+    vkGetImageMemoryRequirements(vkdevLogicalDevice, vkhImage, &propsMemoryRequirements);
+
+    // describe the memory allocation
+    VkMemoryAllocateInfo infoImageMemory = {};
+    infoImageMemory.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    // how much memory to allocate
+    infoImageMemory.allocationSize = propsMemoryRequirements.size;
+    // find the appropriate memory type
+    infoImageMemory.memoryTypeIndex = FindMemoryType(propsMemoryRequirements.memoryTypeBits, flagMemoryProperties);
+
+    // allocate the memory for the image
+    if (vkAllocateMemory(vkdevLogicalDevice, &infoImageMemory, nullptr, &vkhMemory) != VK_SUCCESS) {
+        throw std::runtime_error("Unable to allocate memory for the image");
+    }
+
+    // after a successfull allocation, bind the memory to the image
+    vkBindImageMemory(vkdevLogicalDevice, vkhImage, vkhMemory, 0);
+}
 
 // Create vertex buffers.
 void GfxAPIVulkan::CreateVertexBuffers() {
