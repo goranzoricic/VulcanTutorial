@@ -7,6 +7,8 @@
 #include "../Options.h"
 #include "../GfxAPI/Window.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "../ThirdParty/stb_image.h"
 
 // NOTE: refactor this
 struct Vertex {

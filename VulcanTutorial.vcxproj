@@ -170,6 +170,7 @@
     <ClInclude Include="GfxAPI\Window.h" />
     <ClInclude Include="Options.h" />
     <ClInclude Include="PrecompiledHeader.h" />
+    <ClInclude Include="ThirdParty\stb_image.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\frag.spv" />
