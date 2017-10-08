@@ -176,6 +176,11 @@ bool GfxAPIVulkan::Destroy() {
     vkFreeMemory(vkdevLogicalDevice, vkhUniformBufferMemory, nullptr);
 
     // destroy the vertex buffer
+    vkDestroyImage(vkdevLogicalDevice, vkhImageData, nullptr);
+    // release memory used by the vertex buffer
+    vkFreeMemory(vkdevLogicalDevice, vkhImageMemory, nullptr);
+
+    // destroy the vertex buffer
     vkDestroyBuffer(vkdevLogicalDevice, vkhVertexBuffer, nullptr);
     // release memory used by the vertex buffer
     vkFreeMemory(vkdevLogicalDevice, vkhVertexBufferMemory, nullptr);
@@ -1408,6 +1413,10 @@ void GfxAPIVulkan::CreateTextureImage() {
     // copy data from the staging buffer to the image
     CoypBufferToImage(vkhStagingBuffer, vkhImageData, dimWidth, dimHeight);
 
+    // destroy the staging buffer
+    vkDestroyBuffer(vkdevLogicalDevice, vkhStagingBuffer, nullptr);
+    // free buffer memory
+    vkFreeMemory(vkdevLogicalDevice, vkhStagingMemory, nullptr);
 }
 
 
