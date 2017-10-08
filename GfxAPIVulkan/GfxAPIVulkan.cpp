@@ -457,7 +457,7 @@ bool GfxAPIVulkan::CheckValidationLayerSupport() {
 // Set up the validation error callback
 void GfxAPIVulkan::SetupValidationErrorCallback() {
     // if validation layers are not enable, don't try to set up the callback
-    if (Options::Get().ShouldUseValidationLayers()) {
+    if (!Options::Get().ShouldUseValidationLayers()) {
         return;
     }
     // prepare the struct to create the callback
@@ -1054,7 +1054,7 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	ciVertexInput.pVertexAttributeDescriptions = adescAttributes.data();
 
 	// describe the topology and if primitive restart will be used
-	VkPipelineInputAssemblyStateCreateInfo ciInputAssembly;
+    VkPipelineInputAssemblyStateCreateInfo ciInputAssembly = {};
     ciInputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	// triangle list will be used
 	ciInputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -1272,7 +1272,7 @@ void GfxAPIVulkan::CreateCommandBuffers() {
     acbufCommandBuffers.resize(atgtFramebuffers.size());
 
     // describe the allocation of command buffers - all will be allocated with one call
-    VkCommandBufferAllocateInfo ciAllocateBuffers;
+    VkCommandBufferAllocateInfo ciAllocateBuffers = {};
     ciAllocateBuffers.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     // bind the command pool
     ciAllocateBuffers.commandPool = vkhCommandPool;
@@ -1401,7 +1401,13 @@ void GfxAPIVulkan::CreateTextureImage() {
     // release texture memory
     stbi_image_free(imgRawData);
 
+    // create the image
     CreateImage(dimWidth, dimHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkhImageData, vkhImageMemory);
+    // prepare the image to receive data from the staging buffer
+    TransitionImageLayout(vkhImageData, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    // copy data from the staging buffer to the image
+    CoypBufferToImage(vkhStagingBuffer, vkhImageData, dimWidth, dimHeight);
+
 }
 
 
@@ -1410,6 +1416,8 @@ void GfxAPIVulkan::CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat f
     // describe the image
     VkImageCreateInfo infoImage = {};
     infoImage.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    // this is a 2D image (a regular texture)
+    infoImage.imageType = VK_IMAGE_TYPE_2D;
     // set image dimensions
     infoImage.extent.width = dimWidth;
     infoImage.extent.height = dimHeight;
@@ -1484,12 +1492,31 @@ void GfxAPIVulkan::TransitionImageLayout(VkImage vkhImage, VkFormat fmtFormat, V
     // no mipmaps either
     infoImageMemoryBarrier.subresourceRange.levelCount = 1;
     infoImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
-    // no access masks
-    infoImageMemoryBarrier.dstAccessMask = 0;
-    infoImageMemoryBarrier.srcAccessMask = 0;
+
+    // if transfering from an undefined layout to transfer destination 
+    VkPipelineStageFlags flagSourceStage;
+    VkPipelineStageFlags flagDestinationStage;
+    if (imlOldLayout == VK_IMAGE_LAYOUT_UNDEFINED && imlNewLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        // no need to wait on anything
+        infoImageMemoryBarrier.srcAccessMask = 0;
+        infoImageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        // start at the earliest pipeline stage there is
+        flagSourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        flagDestinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    // else, if transitioning to prepare for reads from the shader
+    } else if (imlOldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && imlNewLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        // need to wait for any transfer to finish
+        infoImageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        infoImageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        // start at the transfer stage
+        flagSourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        flagDestinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
 
     // record a pipeline barrier command to the buffer
-    vkCmdPipelineBarrier(vkhCommandBuffer, 0, 0, 0, 0, nullptr, 0, nullptr, 1, &infoImageMemoryBarrier);
+    vkCmdPipelineBarrier(vkhCommandBuffer, flagSourceStage, flagDestinationStage, 0, 0, nullptr, 0, nullptr, 1, &infoImageMemoryBarrier);
 
     // finish recording and submit the buffer
     EndOneTimeCommand(vkhCommandBuffer);
