@@ -1459,6 +1459,75 @@ void GfxAPIVulkan::CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat f
     vkBindImageMemory(vkdevLogicalDevice, vkhImage, vkhMemory, 0);
 }
 
+
+// Change image layout to what is needed for rendering.
+void GfxAPIVulkan::TransitionImageLayout(VkImage vkhImage, VkFormat fmtFormat, VkImageLayout imlOldLayout, VkImageLayout imlNewLayout) {
+    // begin recording a one time command buffer
+    VkCommandBuffer vkhCommandBuffer = BeginOneTimeCommand();
+
+    // use an image memory barrier to transition the image
+    VkImageMemoryBarrier infoImageMemoryBarrier = {};
+    infoImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    // set source and destination layouts
+    infoImageMemoryBarrier.oldLayout = imlOldLayout;
+    infoImageMemoryBarrier.newLayout = imlNewLayout;
+    // not transferring queue family ownership, so queue indices don't matter
+    infoImageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    infoImageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    // set the image
+    infoImageMemoryBarrier.image = vkhImage;
+    // this is a color image
+    infoImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    // not a 3D image, so only one layer
+    infoImageMemoryBarrier.subresourceRange.layerCount = 1;
+    infoImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+    // no mipmaps either
+    infoImageMemoryBarrier.subresourceRange.levelCount = 1;
+    infoImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+    // no access masks
+    infoImageMemoryBarrier.dstAccessMask = 0;
+    infoImageMemoryBarrier.srcAccessMask = 0;
+
+    // record a pipeline barrier command to the buffer
+    vkCmdPipelineBarrier(vkhCommandBuffer, 0, 0, 0, 0, nullptr, 0, nullptr, 1, &infoImageMemoryBarrier);
+
+    // finish recording and submit the buffer
+    EndOneTimeCommand(vkhCommandBuffer);
+}
+
+
+// Copy a buffer to the image.
+void GfxAPIVulkan::CoypBufferToImage(VkBuffer vkhBuffer, VkImage vkhImage, uint32_t dimWidth, uint32_t dimHeight) {
+    // begin recording a one time command buffer
+    VkCommandBuffer vkhCommandBuffer = BeginOneTimeCommand();
+
+    // prepare the copy command
+    VkBufferImageCopy infoCopyCommand = {};
+    // copyign the whole buffer
+    infoCopyCommand.bufferOffset = 0;
+    // this specifies that pixels are tightly packed
+    infoCopyCommand.bufferImageHeight = 0;
+    infoCopyCommand.bufferRowLength = 0;
+
+    // this is a color image
+    infoCopyCommand.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    // not a 3D image, so only one layer
+    infoCopyCommand.imageSubresource.layerCount = 1;
+    infoCopyCommand.imageSubresource.baseArrayLayer = 0;
+    // no mipmaps either
+    infoCopyCommand.imageSubresource.mipLevel = 0;
+
+    // copy the entire image
+    infoCopyCommand.imageOffset = { 0, 0, 0 };
+    infoCopyCommand.imageExtent = { dimWidth, dimHeight, 1 };
+
+    // record the command to copy the buffer to the image
+    vkCmdCopyBufferToImage(vkhCommandBuffer, vkhBuffer, vkhImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &infoCopyCommand);
+    // finish recording and submit the buffer
+    EndOneTimeCommand(vkhCommandBuffer);
+}
+
+
 // Create vertex buffers.
 void GfxAPIVulkan::CreateVertexBuffers() {
     // create the vertex buffer

@@ -152,6 +152,10 @@ private:
     void CreateTextureImage();
     // Create an image.
     void CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat fmtFormat, VkImageTiling imtTiling, VkImageUsageFlags flagUsage, VkMemoryPropertyFlags flagMemoryProperties, VkImage &vkhImage, VkDeviceMemory &vkhMemory);
+    // Change image layout to what is needed for rendering.
+    void TransitionImageLayout(VkImage vkhImage, VkFormat fmtFormat, VkImageLayout imlOldLayout, VkImageLayout imlNewLayout);
+    // Copy a buffer to the image.
+    void CoypBufferToImage(VkBuffer vkhBuffer, VkImage vkhImage, uint32_t dimWidth, uint32_t dimHeight);
 
     // Create vertex buffer.
     void CreateVertexBuffers();
