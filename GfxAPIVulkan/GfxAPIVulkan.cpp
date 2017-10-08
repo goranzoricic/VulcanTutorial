@@ -1644,6 +1644,25 @@ void GfxAPIVulkan::CreateBuffer(VkDeviceSize ctSize, VkBufferUsageFlags flgBuffe
 
 // Copy memory from one buffer to the other.
 void GfxAPIVulkan::CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationBuffer, VkDeviceSize ctSize) {
+    // begin recording a one time command buffer
+    VkCommandBuffer vkhCommandBuffer = BeginOneTimeCommand();
+
+    // create the copy command - copies start from beggining, size is the size specified in the input arguments
+    VkBufferCopy cmdCopy = {};
+    cmdCopy.srcOffset = 0;
+    cmdCopy.dstOffset = 0;
+    cmdCopy.size = ctSize;
+
+    // run the copy command
+    vkCmdCopyBuffer(vkhCommandBuffer, vkhSourceBuffer, vkhDestinationBuffer, 1, &cmdCopy);
+
+    // finish recording and submit the buffer
+    EndOneTimeCommand(vkhCommandBuffer);
+}
+
+
+// Start one time command recording.
+VkCommandBuffer GfxAPIVulkan::BeginOneTimeCommand() {
     // create a temporary command buffer
     VkCommandBufferAllocateInfo infoCommandBuffer = {};
     infoCommandBuffer.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -1654,7 +1673,7 @@ void GfxAPIVulkan::CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationB
     // only one buffer will be allocated
     infoCommandBuffer.commandBufferCount = 1;
 
-    // allocate teh buffer
+    // allocate the buffer
     VkCommandBuffer vkhCommandBuffer = {};
     vkAllocateCommandBuffers(vkdevLogicalDevice, &infoCommandBuffer, &vkhCommandBuffer);
 
@@ -1667,15 +1686,12 @@ void GfxAPIVulkan::CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationB
     // start recording
     vkBeginCommandBuffer(vkhCommandBuffer, &infoBegin);
 
-    // create the copy command - copies start from beggining, size is the size specified in the input arguments
-    VkBufferCopy cmdCopy = {};
-    cmdCopy.srcOffset = 0;
-    cmdCopy.dstOffset = 0;
-    cmdCopy.size = ctSize;
+    return vkhCommandBuffer;
+}
 
-    // run the copy command
-    vkCmdCopyBuffer(vkhCommandBuffer, vkhSourceBuffer, vkhDestinationBuffer, 1, &cmdCopy);
 
+// Finish one time command recording.
+void GfxAPIVulkan::EndOneTimeCommand(VkCommandBuffer vkhCommandBuffer) {
     // stop recording the buffer
     vkEndCommandBuffer(vkhCommandBuffer);
 
@@ -1694,6 +1710,7 @@ void GfxAPIVulkan::CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationB
     // clean up the command buffer
     vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool, 1, &vkhCommandBuffer);
 }
+
 
 
 // Get the graphics memory type with the desired properties.

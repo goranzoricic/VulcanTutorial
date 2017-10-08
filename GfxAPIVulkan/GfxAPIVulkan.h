@@ -172,6 +172,10 @@ private:
     void CreateBuffer(VkDeviceSize ctSize, VkBufferUsageFlags flgBufferUsage, VkMemoryPropertyFlags flagMemoryProperties, VkBuffer &vkhBuffer, VkDeviceMemory &vkhMemory);
     // Copy memory from one buffer to the other.
     void CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationBuffer, VkDeviceSize ctSize);
+    // Start one time command recording.
+    VkCommandBuffer BeginOneTimeCommand();
+    // Finish one time command recording.
+    void EndOneTimeCommand(VkCommandBuffer vkhCommandBuffer);
 
 private:
     // Handle to the vulkan instance.
