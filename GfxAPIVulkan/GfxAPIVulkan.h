@@ -39,7 +39,8 @@ private:
                     vkhUniformBufferMemory(VK_NULL_HANDLE),
                     vkhImageData(VK_NULL_HANDLE),
                     vkhImageMemory(VK_NULL_HANDLE),
-                    vkhImageView(VK_NULL_HANDLE)
+                    vkhImageView(VK_NULL_HANDLE),
+                    vkhImageSampler(VK_NULL_HANDLE)
     {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
@@ -157,6 +158,8 @@ private:
     void CreateTextureImage();
     // Create a view for the texture.
     void CreateTextureImageVeiw();
+    // Create a sampler for the texture.
+    void CreateImageSampler();
 
     // Create an image view
     VkImageView CreateImageView(VkImage vkhImage, VkFormat fmtFormat);
@@ -270,6 +273,8 @@ private:
     VkDeviceMemory vkhImageMemory;
     // Image view describing how to access the image.
     VkImageView vkhImageView;
+    // Sampler used in the fragment shader to read from the texture.
+    VkSampler vkhImageSampler;
 
     // Index buffer holding the order of vertices in triangles.
     VkBuffer vkhIndexBuffer;

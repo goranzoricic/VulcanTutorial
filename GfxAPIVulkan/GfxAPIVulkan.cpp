@@ -135,6 +135,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateTextureImage();
     // create a texture view
     CreateTextureImageVeiw();
+    // create a sampler for the texture
+    CreateImageSampler();
 
     // create the vertex buffer
     CreateVertexBuffers();
@@ -177,6 +179,8 @@ bool GfxAPIVulkan::Destroy() {
     // release memory used by the uniform buffer
     vkFreeMemory(vkdevLogicalDevice, vkhUniformBufferMemory, nullptr);
 
+    // destroy the texture sampler
+    vkDestroySampler(vkdevLogicalDevice, vkhImageSampler, nullptr);
     // destroy the image view for the texture
     vkDestroyImageView(vkdevLogicalDevice, vkhImageView, nullptr);
     // destroy the texture
@@ -551,6 +555,11 @@ bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) {
     VkPhysicalDeviceFeatures deviceFeatures;
     vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
 
+    // the device must support anisotropy
+    if (!deviceFeatures.samplerAnisotropy) {
+        return false;
+    }
+
     // NOTE: This is only an example of device property and feature selection, the real implementation would be more elaborate
     // and would probably select the best device available
     // the GfxAPIVulkan requires a discrete GPU and geometry shader support
@@ -827,6 +836,10 @@ void GfxAPIVulkan::CreateLogicalDevice() {
     // list the needed device features
     // NOTE: not specifying any for now, will revisit later
     VkPhysicalDeviceFeatures deviceFeatures = {};
+    // request texture sampling anisotropy
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
+
+    // set required features
     ciLogicalDeviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
     // enable the required extensions
@@ -1400,6 +1413,41 @@ void GfxAPIVulkan::CreateTextureImage() {
 // Create a view for the texture.
 void GfxAPIVulkan::CreateTextureImageVeiw() {
     vkhImageView = CreateImageView(vkhImageData, VK_FORMAT_R8G8B8A8_UNORM);
+}
+
+
+// Create a sampler for the texture.
+void GfxAPIVulkan::CreateImageSampler() {
+    // describe the texture sampler
+    VkSamplerCreateInfo infoSampler = {};
+    infoSampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    // use linear filter for magnification and minification
+    infoSampler.magFilter = VK_FILTER_LINEAR;
+    infoSampler.minFilter = VK_FILTER_LINEAR;
+    // set tiling mode to repeat for all coordinate axes
+    infoSampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    infoSampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    infoSampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    // set anisotyopy to 16x
+    infoSampler.anisotropyEnable = VK_TRUE;
+    infoSampler.maxAnisotropy = 16;
+    // if sampling out of bounds, return black - only valid for clamp to border mode
+    infoSampler.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    // for UV coordinates, use [0,1) range - uses [0, texture_size) if TRUE
+    infoSampler.unnormalizedCoordinates = VK_FALSE;
+    // set compare options - not used in this filtering method
+    infoSampler.compareEnable = VK_FALSE;
+    infoSampler.compareOp = VK_COMPARE_OP_ALWAYS;
+    // set mipmaping options to no mipmaps
+    infoSampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    infoSampler.mipLodBias = 0.0f;
+    infoSampler.minLod = 0.0f;
+    infoSampler.maxLod = 0.0f;
+
+    // create the sampler
+    if (vkCreateSampler(vkdevLogicalDevice, &infoSampler, nullptr, &vkhImageSampler) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the texture sampler");
+    }
 }
 
 
