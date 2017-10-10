@@ -154,6 +154,9 @@ private:
     // Delete the semaphores.
     void DestroySemaphores();
 
+    // Create resources needed for depth testing.
+    void CreateDepthResources();
+
     // Create a texture.
     void CreateTextureImage();
     // Create a view for the texture.
@@ -161,8 +164,15 @@ private:
     // Create a sampler for the texture.
     void CreateImageSampler();
 
+    // Find the format to use for depth.
+    VkFormat FindDepthFormat();
+    // Find the first supported format from a list of formats.
+    VkFormat FindSupportedFormat(const std::vector<VkFormat> &afmtFormats, VkImageTiling imtTiling, VkFormatFeatureFlags flagFormatFeatures);
+    // Does the format have the stencil component
+    bool FormatHasStencilComponent(VkFormat fmtFormat);
+
     // Create an image view
-    VkImageView CreateImageView(VkImage vkhImage, VkFormat fmtFormat);
+    VkImageView CreateImageView(VkImage vkhImage, VkFormat fmtFormat, VkImageAspectFlags flagImageAspect);
     // Create an image.
     void CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat fmtFormat, VkImageTiling imtTiling, VkImageUsageFlags flagUsage, VkMemoryPropertyFlags flagMemoryProperties, VkImage &vkhImage, VkDeviceMemory &vkhMemory);
     // Change image layout to what is needed for rendering.
@@ -267,7 +277,7 @@ private:
     // Memory used by the vertex buffer.
     VkDeviceMemory vkhVertexBufferMemory;
 
-    // Image buffer holding the order of vertices in triangles.
+    // Image holding the texture data.
     VkImage vkhImageData;
     // Memory used by the Image buffer.
     VkDeviceMemory vkhImageMemory;
@@ -275,6 +285,13 @@ private:
     VkImageView vkhImageView;
     // Sampler used in the fragment shader to read from the texture.
     VkSampler vkhImageSampler;
+
+    // Depth image that fragment depth will be written to and tested with.
+    VkImage vkhDepthImageData;
+    // Memory used by the Depth image buffer.
+    VkDeviceMemory vkhDepthImageMemory;
+    // Depth image view describing how to access the Depth image.
+    VkImageView vkhDeptImageView;
 
     // Index buffer holding the order of vertices in triangles.
     VkBuffer vkhIndexBuffer;

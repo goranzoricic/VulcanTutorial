@@ -31,8 +31,8 @@ struct Vertex {
     };
 
     // Describe each individual vertex attribute.
-    static std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 2> adescAttributes = {};
+    static std::array<VkVertexInputAttributeDescription, 3> GetAttributeDescriptions() {
+        std::array<VkVertexInputAttributeDescription, 3> adescAttributes = {};
         // set up the description of the vertex position
         // data comes from the binding 0 (set up above)
         adescAttributes[0].binding = 0;
@@ -55,13 +55,13 @@ struct Vertex {
 
         // set up the description of the texture coordinates
         // data comes from the binding 0 (set up above)
-        adescAttributes[1].binding = 0;
+        adescAttributes[2].binding = 0;
         // data goes to the location 0 (specified in the vertex shader)
-        adescAttributes[1].location = 2;
+        adescAttributes[2].location = 2;
         // data is three 32bit floats (red, green, blue)
-        adescAttributes[1].format = VK_FORMAT_R32G32_SFLOAT;
+        adescAttributes[2].format = VK_FORMAT_R32G32_SFLOAT;
         // offset of this attribute from the start of the data block
-        adescAttributes[1].offset = offsetof(Vertex, vecTexCoords);
+        adescAttributes[2].offset = offsetof(Vertex, vecTexCoords);
 
         return adescAttributes;
     };
@@ -142,10 +142,13 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateDescriptorSetLayout();
     // create the graphics pipeline
     CreateGraphicsPipeline();
-    // create the framebuffers
-    CreateFramebuffers();
     // create the command pool
     CreateCommandPool();
+
+    // create resources needed for depth testing
+    CreateDepthResources();
+    // create the framebuffers
+    CreateFramebuffers();
 
     // create a texture
     CreateTextureImage();
@@ -249,10 +252,10 @@ void GfxAPIVulkan::InitializeSwapChain() {
     CreateImageViews();
     // create the render pass
     CreateRenderPass();
-    // create descriptor set layout
-    CreateDescriptorSetLayout();
     // create the graphics pipeline
     CreateGraphicsPipeline();
+    // create resources needed for depth testing
+    CreateDepthResources();
     // create the framebuffers
     CreateFramebuffers();
     // allocate command buffers
@@ -263,12 +266,20 @@ void GfxAPIVulkan::InitializeSwapChain() {
 
 // Destroy the swap chain.
 void GfxAPIVulkan::DestroySwapChain() {
+    // destroy the image view for depth
+    vkDestroyImageView(vkdevLogicalDevice, vkhDeptImageView, nullptr);
+    // destroy the depth bugger
+    vkDestroyImage(vkdevLogicalDevice, vkhDepthImageData, nullptr);
+    // release memory used by the depth buffer
+    vkFreeMemory(vkdevLogicalDevice, vkhDepthImageMemory, nullptr);
+
     // delete the command buffers
     if (acbufCommandBuffers.size() > 0) {
         vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool, (uint32_t)acbufCommandBuffers.size(), acbufCommandBuffers.data());
     }
     // destroy the framebuffers
     DestroyFramebuffers();
+
     // destroy the pipeline
     vkDestroyPipeline(vkdevLogicalDevice, vkgpipePipeline, nullptr);
 	// destroy the pipeline layout
@@ -808,7 +819,7 @@ void GfxAPIVulkan::CreateImageViews() {
     // for each swap chain image, create the view
     for (size_t iImage = 0; iImage < aimgImages.size(); ++iImage) {
         // create the image view
-        aimgvImageViews[iImage] = CreateImageView(aimgImages[iImage], sfmtFormat.format);
+        aimgvImageViews[iImage] = CreateImageView(aimgImages[iImage], sfmtFormat.format, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 }
 
@@ -934,7 +945,7 @@ std::vector<char> GfxAPIVulkan::LoadShader(const std::string &filename) {
 
 // Create the render pass.
 void GfxAPIVulkan::CreateRenderPass() {
-	// describe the attachment used for the render pass
+	// describe the attachment used for the color target
 	VkAttachmentDescription descColorAttachment = {};
 	// color format is the same as the one in the swap chain
 	descColorAttachment.format = sfmtFormat.format;
@@ -949,12 +960,34 @@ void GfxAPIVulkan::CreateRenderPass() {
 	// final layout needs to be presented in the swap chain
 	descColorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-	// describe the attachment reference
-	VkAttachmentReference refAttachment = {};
-	// only one attachment, bind to input 0
-	refAttachment.attachment = 0;
-	// the attachment will function as a color buffer
-	refAttachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    // describe the attachment reference
+    VkAttachmentReference refColorAttachment = {};
+    // only one attachment, bind to input 0
+    refColorAttachment.attachment = 0;
+    // the attachment will function as a color buffer
+    refColorAttachment.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    // describe the attachment used for the depth target
+    VkAttachmentDescription descDepthAttachment = {};
+    // find the format used for depth
+    descDepthAttachment.format = FindDepthFormat();
+    // no multisampling, use one sample
+    descDepthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+    // the buffer should be cleared to a constant at the start
+    descDepthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    // don't care about storing after the pass is rendered
+    descDepthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    // the initial layout of the image is not important
+    descDepthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // final layout is the depth buffer
+    descDepthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    
+    // describe the attachment reference
+    VkAttachmentReference refDepthAttachment = {};
+    // only one attachment, bind to input 0
+    refDepthAttachment.attachment = 1;
+    // the attachment will function as a color buffer
+    refDepthAttachment.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 	// describe the subpass needed
 	VkSubpassDescription descSubPass = {};
@@ -962,7 +995,9 @@ void GfxAPIVulkan::CreateRenderPass() {
 	descSubPass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
 	// bind the attachment to this render pass
 	descSubPass.colorAttachmentCount = 1;
-	descSubPass.pColorAttachments = &refAttachment;
+	descSubPass.pColorAttachments = &refColorAttachment;
+    // bind the depth attachment
+    descSubPass.pDepthStencilAttachment = &refDepthAttachment;
 
     // describe the subpass dependency - making sure that the subpass doesn't begin before an buffer is available
     VkSubpassDependency infDependency = {};
@@ -980,15 +1015,18 @@ void GfxAPIVulkan::CreateRenderPass() {
     // description of the render pass to create
 	VkRenderPassCreateInfo ciRenderPass = {};
 	ciRenderPass.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	// bind the color attachment
-	ciRenderPass.attachmentCount = 1;
-	ciRenderPass.pAttachments = &descColorAttachment;
-	// bind the subpass
-	ciRenderPass.subpassCount = 1;
-	ciRenderPass.pSubpasses = &descSubPass;
+    // bind the subpass
+    ciRenderPass.subpassCount = 1;
+    ciRenderPass.pSubpasses = &descSubPass;
     // bind the dependency
     ciRenderPass.dependencyCount = 0;
     ciRenderPass.pDependencies = &infDependency;
+
+    // create the array of attachments
+    std::array<VkAttachmentDescription, 2> ainfoAttachments = { descColorAttachment, descDepthAttachment };
+	// bind the color attachment
+	ciRenderPass.attachmentCount = static_cast<uint32_t>(ainfoAttachments.size());
+	ciRenderPass.pAttachments = ainfoAttachments.data();
 
 	// finally, create the render pass
 	if (vkCreateRenderPass(vkdevLogicalDevice, &ciRenderPass, nullptr, &vkpassRenderPass) != VK_SUCCESS) {
@@ -1194,11 +1232,27 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	ciPipelineLayout.pushConstantRangeCount = 0;
 	ciPipelineLayout.pPushConstantRanges = 0;
 
-	// create the pipeline
+	// create the pipeline layout
 	if (vkCreatePipelineLayout(vkdevLogicalDevice, &ciPipelineLayout, nullptr, &vkplPipelineLayout) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create the pipeline layout!");
 	}
 
+    // describe the depth and stencil state
+    VkPipelineDepthStencilStateCreateInfo infoPipelineDepthStencilState = {};
+    infoPipelineDepthStencilState.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+    // enable depth testing and writing to depth
+    infoPipelineDepthStencilState.depthTestEnable = VK_TRUE;
+    infoPipelineDepthStencilState.depthWriteEnable = VK_TRUE;
+    // depth test passes (fragment can be written) if its value is lesser than one in the depth buffer
+    infoPipelineDepthStencilState.depthCompareOp = VK_COMPARE_OP_LESS;
+    // not using the depth range test
+    infoPipelineDepthStencilState.depthBoundsTestEnable = VK_FALSE;
+    infoPipelineDepthStencilState.minDepthBounds = 0.0f;
+    infoPipelineDepthStencilState.maxDepthBounds = 1.0f;
+    // also not using the stencil
+    infoPipelineDepthStencilState.stencilTestEnable = VK_FALSE;
+    infoPipelineDepthStencilState.front = {};
+    infoPipelineDepthStencilState.back = {};
     
     // finally, describe the graphics pipeline itself
     VkGraphicsPipelineCreateInfo ciGraphicsPipeline = {};
@@ -1212,7 +1266,7 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
     ciGraphicsPipeline.pViewportState = &ciViewportState;
     ciGraphicsPipeline.pRasterizationState = &ciRasterizationState;
     ciGraphicsPipeline.pMultisampleState = &ciMultisampling;
-    ciGraphicsPipeline.pDepthStencilState = nullptr;
+    ciGraphicsPipeline.pDepthStencilState = &infoPipelineDepthStencilState;
     ciGraphicsPipeline.pColorBlendState = &ciColorBlendState;
     ciGraphicsPipeline.pDynamicState = nullptr;
     // set the pipeline layout
@@ -1250,18 +1304,19 @@ void GfxAPIVulkan::CreateFramebuffers() {
     ciFramebuffer.height = sexExtent.height;
     // only one layer
     ciFramebuffer.layers = 1;
-    // there will only be one image view
-    ciFramebuffer.attachmentCount = 1;
 
     // create a frame buffer for each image view
     for (int iImageView = 0; iImageView < aimgvImageViews.size(); iImageView++) {
         // create the image view attachment
-        VkImageView aimgvAttachments[] = {
-            aimgvImageViews[iImageView]
+        std::array<VkImageView, 2> avkhAttachments = {
+            aimgvImageViews[iImageView],
+            vkhDeptImageView,
         };
 
         // bind the image view to the framebuffer
-        ciFramebuffer.pAttachments = aimgvAttachments;
+        ciFramebuffer.pAttachments = avkhAttachments.data();
+        // there will only be one image view
+        ciFramebuffer.attachmentCount = static_cast<uint32_t>(avkhAttachments.size());
 
         // create the framebuffer
         if (vkCreateFramebuffer(vkdevLogicalDevice, &ciFramebuffer, nullptr, &atgtFramebuffers[iImageView]) != VK_SUCCESS) {
@@ -1327,7 +1382,9 @@ void GfxAPIVulkan::RecordCommandBuffers() {
     ciCommandBufferBegin.pInheritanceInfo = nullptr;
 
     // define the fraembuffer clear color as black
-    VkClearValue colClearColor = { 0.0f, 0.0f, 0.0f, 1.0f };
+    std::array<VkClearValue, 2> acolClearColors = {};
+    acolClearColors[0].color = { 0.0f, 0.0f, 0.0f, 1.0f };
+    acolClearColors[1].depthStencil = { 1.0f, 0 };
 
     // describe how the render pass will be used
     VkRenderPassBeginInfo ciRenderPassBegin = {};
@@ -1338,8 +1395,8 @@ void GfxAPIVulkan::RecordCommandBuffers() {
     ciRenderPassBegin.renderArea.offset = { 0,0 };
     ciRenderPassBegin.renderArea.extent = sexExtent;
     // set the clear color
-    ciRenderPassBegin.clearValueCount = 1;
-    ciRenderPassBegin.pClearValues = &colClearColor;
+    ciRenderPassBegin.clearValueCount = static_cast<uint32_t>(acolClearColors.size());
+    ciRenderPassBegin.pClearValues = acolClearColors.data();
 
     // record the same commands in all buffers
     for (int iCommandBuffer = 0; iCommandBuffer < acbufCommandBuffers.size(); iCommandBuffer++) {
@@ -1399,6 +1456,21 @@ void GfxAPIVulkan::DestroySemaphores() {
 }
 
 
+// Create resources needed for depth testing.
+void GfxAPIVulkan::CreateDepthResources() {
+    // get the depth format to use
+    VkFormat fmtDepth = FindDepthFormat();
+
+    // create the depth image
+    CreateImage(sexExtent.width, sexExtent.height, fmtDepth, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkhDepthImageData, vkhDepthImageMemory);
+    // create the image view for depth
+    vkhDeptImageView = CreateImageView(vkhDepthImageData, fmtDepth, VK_IMAGE_ASPECT_DEPTH_BIT);
+
+    // transition the layout to one suitable for depth attachment
+    TransitionImageLayout(vkhDepthImageData, fmtDepth, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+}
+
+
 // Create a texture.
 void GfxAPIVulkan::CreateTextureImage() {
     // load the image ising the stb library
@@ -1445,7 +1517,7 @@ void GfxAPIVulkan::CreateTextureImage() {
 
 // Create a view for the texture.
 void GfxAPIVulkan::CreateTextureImageVeiw() {
-    vkhImageView = CreateImageView(vkhImageData, VK_FORMAT_R8G8B8A8_UNORM);
+    vkhImageView = CreateImageView(vkhImageData, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_ASPECT_COLOR_BIT);
 }
 
 
@@ -1484,8 +1556,43 @@ void GfxAPIVulkan::CreateImageSampler() {
 }
 
 
+// Find the format to use for depth.
+VkFormat GfxAPIVulkan::FindDepthFormat() {
+    VkFormat fmtFormat = FindSupportedFormat({ VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT }, VK_IMAGE_TILING_OPTIMAL, VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+    return fmtFormat;
+}
+
+
+// Find the first supported format from a list of formats.
+VkFormat GfxAPIVulkan::FindSupportedFormat(const std::vector<VkFormat> &afmtFormats, VkImageTiling imtTiling, VkFormatFeatureFlags flagFormatFeatures) {
+    // go through provided formats
+    for (VkFormat fmtFormat : afmtFormats) {
+        // get format properties
+        VkFormatProperties propsFormat;
+        vkGetPhysicalDeviceFormatProperties(vkdevPhysicalDevice, fmtFormat, &propsFormat);
+
+        // if linear tiling was requested and the format supports the requested features for it, return that format
+        if (imtTiling == VK_IMAGE_TILING_LINEAR && (propsFormat.linearTilingFeatures & flagFormatFeatures) == flagFormatFeatures) {
+            return fmtFormat;
+        // else, if optimal tiling was requested and the format supports the requested features for it, return that format
+        } else if (imtTiling == VK_IMAGE_TILING_OPTIMAL && (propsFormat.optimalTilingFeatures & flagFormatFeatures) == flagFormatFeatures) {
+            return fmtFormat;
+        }
+    }
+
+    // if no appropriate format was found, throw an exception
+    throw std::runtime_error("No supproted format found.");
+}
+
+
+// Does the format have the stencil component
+bool GfxAPIVulkan::FormatHasStencilComponent(VkFormat fmtFormat) {
+    return fmtFormat == VK_FORMAT_D32_SFLOAT_S8_UINT || fmtFormat == VK_FORMAT_D24_UNORM_S8_UINT;
+}
+
+
 // Create an image view
-VkImageView GfxAPIVulkan::CreateImageView(VkImage vkhImage, VkFormat fmtFormat) {
+VkImageView GfxAPIVulkan::CreateImageView(VkImage vkhImage, VkFormat fmtFormat, VkImageAspectFlags flagImageAspect) {
 
     // describe the image view
     VkImageViewCreateInfo infoImageView = {};
@@ -1496,7 +1603,7 @@ VkImageView GfxAPIVulkan::CreateImageView(VkImage vkhImage, VkFormat fmtFormat) 
     infoImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
     infoImageView.format = fmtFormat;
     // it is color map with no mipmaps or layers
-    infoImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    infoImageView.subresourceRange.aspectMask = flagImageAspect;
     infoImageView.subresourceRange.layerCount = 1;
     infoImageView.subresourceRange.baseArrayLayer = 0;
     infoImageView.subresourceRange.levelCount = 1;
@@ -1584,14 +1691,25 @@ void GfxAPIVulkan::TransitionImageLayout(VkImage vkhImage, VkFormat fmtFormat, V
     infoImageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     // set the image
     infoImageMemoryBarrier.image = vkhImage;
-    // this is a color image
-    infoImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
     // not a 3D image, so only one layer
     infoImageMemoryBarrier.subresourceRange.layerCount = 1;
     infoImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
     // no mipmaps either
     infoImageMemoryBarrier.subresourceRange.levelCount = 1;
     infoImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+    
+    // if transitioning a depth buffer
+    if (imlNewLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        // mark that it in the aspect mask
+        infoImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+        // if the format has a stencil component, set the stencil aspect bit
+        if (FormatHasStencilComponent(fmtFormat)) {
+            infoImageMemoryBarrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+    // else, it's a texture
+    } else {
+        infoImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    }
 
     // if transfering from an undefined layout to transfer destination 
     VkPipelineStageFlags flagSourceStage;
@@ -1613,6 +1731,18 @@ void GfxAPIVulkan::TransitionImageLayout(VkImage vkhImage, VkFormat fmtFormat, V
         // start at the transfer stage
         flagSourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
         flagDestinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    // else, if transitioning to prepare the depth and stencil buffer
+    } else if (imlOldLayout == VK_IMAGE_LAYOUT_UNDEFINED && imlNewLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+        // no need to wait on anything
+        infoImageMemoryBarrier.srcAccessMask = 0;
+        infoImageMemoryBarrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        // start at the earliest pipeline stage there is
+        flagSourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        flagDestinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    // else, if any other kind of transition
+    } else {
+        throw std::runtime_error("Unsupported image layout transition.");
     }
 
     // record a pipeline barrier command to the buffer
