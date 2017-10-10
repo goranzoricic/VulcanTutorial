@@ -133,6 +133,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 
     // create a texture
     CreateTextureImage();
+    // create a texture view
+    CreateTextureImageVeiw();
 
     // create the vertex buffer
     CreateVertexBuffers();
@@ -175,9 +177,11 @@ bool GfxAPIVulkan::Destroy() {
     // release memory used by the uniform buffer
     vkFreeMemory(vkdevLogicalDevice, vkhUniformBufferMemory, nullptr);
 
-    // destroy the vertex buffer
+    // destroy the image view for the texture
+    vkDestroyImageView(vkdevLogicalDevice, vkhImageView, nullptr);
+    // destroy the texture
     vkDestroyImage(vkdevLogicalDevice, vkhImageData, nullptr);
-    // release memory used by the vertex buffer
+    // release memory used by the texture
     vkFreeMemory(vkdevLogicalDevice, vkhImageMemory, nullptr);
 
     // destroy the vertex buffer
@@ -718,14 +722,14 @@ void GfxAPIVulkan::SelectSwapChainFormat() {
     // doesn't care which format is use, so we pick the one that suits us best
     // NOTE: look into using VK_COLOR_SPACE_SCRGB_LINEAR_EXT instead
     if (aFormats.size() == 1 && aFormats[0].format == VK_FORMAT_UNDEFINED) {
-        sfmtFormat = { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
+        sfmtFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
         return;
     }
 
     // otherwise, try to find the desired format among the returned formats
     for (const auto &format : aFormats) {
-        if (format.colorSpace == VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT && format.format == VK_FORMAT_B8G8R8A8_UNORM) {
-            sfmtFormat = { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
+        if (format.colorSpace == VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT && format.format == VK_FORMAT_R8G8B8A8_UNORM) {
+            sfmtFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
             return;
         }
     }
@@ -776,37 +780,10 @@ void GfxAPIVulkan::CreateImageViews() {
     // resize the array to the correct number of views
     aimgvImageViews.resize(aimgImages.size());
 
-    // prepare the create info
-    VkImageViewCreateInfo ciImageView = {};
-    ciImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-
-    // use it as a 2D texture (could be 1D, 2D, 3D, cube map)
-    ciImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    // set the format
-    ciImageView.format = sfmtFormat.format;
-
-    // set the channel mappings, use defaults
-    // this allowes to bind various things to channels - swap channels around, 0, 1...
-    ciImageView.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    ciImageView.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    ciImageView.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    ciImageView.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-    // specify that thi should be a color target, without any layers or mip maps
-    ciImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    ciImageView.subresourceRange.baseMipLevel = 0;
-    ciImageView.subresourceRange.levelCount = 1;
-    ciImageView.subresourceRange.baseArrayLayer = 0;
-    ciImageView.subresourceRange.layerCount = 1;
-
     // for each swap chain image, create the view
     for (size_t iImage = 0; iImage < aimgImages.size(); ++iImage) {
-        // set the image handle
-        ciImageView.image = aimgImages[iImage];
         // create the image view
-        if (vkCreateImageView(vkdevLogicalDevice, &ciImageView, nullptr, &aimgvImageViews[iImage]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create an image view");
-        }
+        aimgvImageViews[iImage] = CreateImageView(aimgImages[iImage], sfmtFormat.format);
     }
 }
 
@@ -1419,6 +1396,39 @@ void GfxAPIVulkan::CreateTextureImage() {
     vkFreeMemory(vkdevLogicalDevice, vkhStagingMemory, nullptr);
 }
 
+
+// Create a view for the texture.
+void GfxAPIVulkan::CreateTextureImageVeiw() {
+    vkhImageView = CreateImageView(vkhImageData, VK_FORMAT_R8G8B8A8_UNORM);
+}
+
+
+// Create an image view
+VkImageView GfxAPIVulkan::CreateImageView(VkImage vkhImage, VkFormat fmtFormat) {
+
+    // describe the image view
+    VkImageViewCreateInfo infoImageView = {};
+    infoImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    // set the image
+    infoImageView.image = vkhImage;
+    // it is a view into a RGBA 2D texture
+    infoImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    infoImageView.format = fmtFormat;
+    // it is color map with no mipmaps or layers
+    infoImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    infoImageView.subresourceRange.layerCount = 1;
+    infoImageView.subresourceRange.baseArrayLayer = 0;
+    infoImageView.subresourceRange.levelCount = 1;
+    infoImageView.subresourceRange.baseMipLevel = 0;
+
+    // create the image view
+    VkImageView vkhView;
+    if (vkCreateImageView(vkdevLogicalDevice, &infoImageView, nullptr, &vkhView) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create an image view");
+    }
+
+    return vkhView;
+}
 
 // Create an image.
 void GfxAPIVulkan::CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat fmtFormat, VkImageTiling imtTiling, VkImageUsageFlags flagUsage, VkMemoryPropertyFlags flagMemoryProperties, VkImage &vkhImage, VkDeviceMemory &vkhMemory) {

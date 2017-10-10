@@ -30,11 +30,16 @@ private:
                     swcSwapChain(VK_NULL_HANDLE),
                     vkpassRenderPass(VK_NULL_HANDLE),
                     vkhDescriptorSetLayout(VK_NULL_HANDLE),
+                    vkhDescriptorPool(VK_NULL_HANDLE),
                     vkplPipelineLayout(VK_NULL_HANDLE),
                     vkgpipePipeline(VK_NULL_HANDLE),
                     vkhVertexBuffer(VK_NULL_HANDLE),
                     vkhVertexBufferMemory(VK_NULL_HANDLE),
-                    vkhDescriptorPool(VK_NULL_HANDLE)
+                    vkhUniformBuffer(VK_NULL_HANDLE),
+                    vkhUniformBufferMemory(VK_NULL_HANDLE),
+                    vkhImageData(VK_NULL_HANDLE),
+                    vkhImageMemory(VK_NULL_HANDLE),
+                    vkhImageView(VK_NULL_HANDLE)
     {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
@@ -150,6 +155,11 @@ private:
 
     // Create a texture.
     void CreateTextureImage();
+    // Create a view for the texture.
+    void CreateTextureImageVeiw();
+
+    // Create an image view
+    VkImageView CreateImageView(VkImage vkhImage, VkFormat fmtFormat);
     // Create an image.
     void CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat fmtFormat, VkImageTiling imtTiling, VkImageUsageFlags flagUsage, VkMemoryPropertyFlags flagMemoryProperties, VkImage &vkhImage, VkDeviceMemory &vkhMemory);
     // Change image layout to what is needed for rendering.
@@ -258,6 +268,8 @@ private:
     VkImage vkhImageData;
     // Memory used by the Image buffer.
     VkDeviceMemory vkhImageMemory;
+    // Image view describing how to access the image.
+    VkImageView vkhImageView;
 
     // Index buffer holding the order of vertices in triangles.
     VkBuffer vkhIndexBuffer;
