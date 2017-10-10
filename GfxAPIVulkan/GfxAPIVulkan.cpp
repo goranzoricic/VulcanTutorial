@@ -14,6 +14,7 @@
 struct Vertex {
     glm::vec2 vecPosition;
     glm::vec3 colColor;
+    glm::vec2 vecTexCoords;
 
     // Describe to the Vulkan API how to handle Vertex data.
     static VkVertexInputBindingDescription GetBindingDescription() {
@@ -52,16 +53,26 @@ struct Vertex {
         // offset of this attribute from the start of the data block
         adescAttributes[1].offset = offsetof(Vertex, colColor);
 
+        // set up the description of the texture coordinates
+        // data comes from the binding 0 (set up above)
+        adescAttributes[1].binding = 0;
+        // data goes to the location 0 (specified in the vertex shader)
+        adescAttributes[1].location = 2;
+        // data is three 32bit floats (red, green, blue)
+        adescAttributes[1].format = VK_FORMAT_R32G32_SFLOAT;
+        // offset of this attribute from the start of the data block
+        adescAttributes[1].offset = offsetof(Vertex, vecTexCoords);
+
         return adescAttributes;
     };
 };
 
 // Vertices that the drawn shape consists of.
 const std::vector<Vertex> avVertices = {
-    { { -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f } },
-    { { 0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f } },
-    { { 0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f } },
-    { { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f } } 
+    { { -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
+    { { 0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
+    { { 0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f },{ 0.0f, 1.0f } },
+    { { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } }
 };
 
 
@@ -984,23 +995,40 @@ void GfxAPIVulkan::CreateRenderPass() {
 
 // Create descriptor sets - used to bind uniforms to shaders.
 void GfxAPIVulkan::CreateDescriptorSetLayout() {
-    // describe the descriptor set binding
-    VkDescriptorSetLayoutBinding infoDescriptorSetBinding = {};
+    // describe the descriptor set binding for the uniform buffer
+    VkDescriptorSetLayoutBinding infoUniformBinding = {};
     // set the binding index (defined in the shader)
-    infoDescriptorSetBinding.binding = 0;
+    infoUniformBinding.binding = 0;
     // this describes a uniform buffer
-    infoDescriptorSetBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    infoUniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     // it contains a single uniform buffer object
-    infoDescriptorSetBinding.descriptorCount = 1;
+    infoUniformBinding.descriptorCount = 1;
     // the descriptor set is meant for the vertex program
-    infoDescriptorSetBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    infoUniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    // describe the descriptor set binding for the texture sampler
+    VkDescriptorSetLayoutBinding infoSamplerBinding = {};
+    // set the binding index (defined in the shader)
+    infoSamplerBinding.binding = 1;
+    // this describes a uniform buffer
+    infoSamplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    // it contains a single uniform buffer object
+    infoSamplerBinding.descriptorCount = 1;
+    // the descriptor set is meant for the vertex program
+    infoSamplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    // no immutable samplers
+    infoSamplerBinding.pImmutableSamplers = nullptr;
+
 
     // describe the descriptor set layout
     VkDescriptorSetLayoutCreateInfo infoDescriptorSetLayout = {};
     infoDescriptorSetLayout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+
+    // create an array of layout bindings
+    std::array<VkDescriptorSetLayoutBinding, 2> ainfoBindings = { infoUniformBinding, infoSamplerBinding };
     // set the binding description
-    infoDescriptorSetLayout.bindingCount = 1;
-    infoDescriptorSetLayout.pBindings = &infoDescriptorSetBinding;
+    infoDescriptorSetLayout.bindingCount = static_cast<uint32_t>(ainfoBindings.size());
+    infoDescriptorSetLayout.pBindings = ainfoBindings.data();
 
     // create the layout
     if (vkCreateDescriptorSetLayout(vkdevLogicalDevice, &infoDescriptorSetLayout, nullptr, &vkhDescriptorSetLayout) != VK_SUCCESS) {
@@ -1695,18 +1723,22 @@ void GfxAPIVulkan::CreateUniformBuffers() {
 // create the descriptor pool
 void GfxAPIVulkan::CreateDescriptorPool() {
     // describe the descriptors that go into this pool
-    VkDescriptorPoolSize infoPoolSize = {};
-    // it's the pool for uniform buffer descriptors
-    infoPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // it holds one descriptor
-    infoPoolSize.descriptorCount = 1;
+    std::array<VkDescriptorPoolSize, 2> ainfoPoolSizes = {};
+    // the first one is the pool for uniform buffer descriptors
+    ainfoPoolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // it can allocate one descriptor
+    ainfoPoolSizes[0].descriptorCount = 1;
+    // the second one is the pool of image samplers
+    ainfoPoolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    // it can allocate one descriptor
+    ainfoPoolSizes[1].descriptorCount = 1;
 
     // describe the descriptor pool
     VkDescriptorPoolCreateInfo infoDescriptorPool = {};
     infoDescriptorPool.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     // this descriptor pool has one pool size info
-    infoDescriptorPool.poolSizeCount = 1;
-    infoDescriptorPool.pPoolSizes = &infoPoolSize;
+    infoDescriptorPool.poolSizeCount = static_cast<uint32_t>(ainfoPoolSizes.size());
+    infoDescriptorPool.pPoolSizes = ainfoPoolSizes.data();
     // maximuma of one descriptor sets will be allocated
     infoDescriptorPool.maxSets = 1;
 
@@ -1745,24 +1777,49 @@ void GfxAPIVulkan::CreateDescriptorSet() {
     // size is equal to the buffer object's
     infoUniformBuffer.range = sizeof(UniformBufferObject);
 
-    // describe how to update the descriptor set
-    VkWriteDescriptorSet infoUpdateDescriptorSet = {};
-    infoUpdateDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    // mark the set tu update
-    infoUpdateDescriptorSet.dstSet = vkhDescriptorSet;
-    // set the shader binding
-    infoUpdateDescriptorSet.dstBinding = 0;
+    // a descriptor for the image sampler
+    VkDescriptorImageInfo infoImage = {};
+    // set the image layout to optimal for reading from a fragment shader
+    infoImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    // set the image view and sampler
+    infoImage.imageView = vkhImageView;
+    infoImage.sampler = vkhImageSampler;
+
+    // describe how to update the descriptor sets
+    std::array<VkWriteDescriptorSet, 2> ainfoUpdateDescriptorSets = {};
+
+    // describe the set for the uniform buffer
+    ainfoUpdateDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    // mark the set to update
+    ainfoUpdateDescriptorSets[0].dstSet = vkhDescriptorSet;
+    // set the shader binding for the uniform
+    ainfoUpdateDescriptorSets[0].dstBinding = 0;
     // the descriptor doesn't describe an array
-    infoUpdateDescriptorSet.dstArrayElement = 0;
+    ainfoUpdateDescriptorSets[0].dstArrayElement = 0;
     // this descriptor describes an uniform buffer
-    infoUpdateDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    ainfoUpdateDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     // it holds one descriptor
-    infoUpdateDescriptorSet.descriptorCount = 1;
+    ainfoUpdateDescriptorSets[0].descriptorCount = 1;
     // bind the buffer info
-    infoUpdateDescriptorSet.pBufferInfo = &infoUniformBuffer;
+    ainfoUpdateDescriptorSets[0].pBufferInfo = &infoUniformBuffer;
+
+    // describe the set for the image sampler
+    ainfoUpdateDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    // mark the set to update
+    ainfoUpdateDescriptorSets[1].dstSet = vkhDescriptorSet;
+    // set the shader binding for the sampler
+    ainfoUpdateDescriptorSets[1].dstBinding = 1;
+    // the descriptor doesn't describe an array
+    ainfoUpdateDescriptorSets[1].dstArrayElement = 0;
+    // this descriptor describes a texture sampler
+    ainfoUpdateDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    // it holds one descriptor
+    ainfoUpdateDescriptorSets[1].descriptorCount = 1;
+    // bind the sampler
+    ainfoUpdateDescriptorSets[1].pImageInfo = &infoImage;
 
     // apply updates to the descriptor
-    vkUpdateDescriptorSets(vkdevLogicalDevice, 1, &infoUpdateDescriptorSet, 0, nullptr);
+    vkUpdateDescriptorSets(vkdevLogicalDevice, static_cast<uint32_t>(ainfoUpdateDescriptorSets.size()), ainfoUpdateDescriptorSets.data(), 0, nullptr);
 }
 
 
