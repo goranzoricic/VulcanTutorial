@@ -12,7 +12,7 @@
 
 // NOTE: refactor this
 struct Vertex {
-    glm::vec2 vecPosition;
+    glm::vec3 vecPosition;
     glm::vec3 colColor;
     glm::vec2 vecTexCoords;
 
@@ -39,7 +39,7 @@ struct Vertex {
         // data goes to the location 0 (specified in the vertex shader)
         adescAttributes[0].location = 0;
         // data is two 32bit floats (screen x, y)
-        adescAttributes[0].format = VK_FORMAT_R32G32_SFLOAT;
+        adescAttributes[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
         // offset of this attribute from the start of the data block
         adescAttributes[0].offset = offsetof(Vertex, vecPosition);
 
@@ -69,17 +69,22 @@ struct Vertex {
 
 // Vertices that the drawn shape consists of.
 const std::vector<Vertex> avVertices = {
-    { { -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
-    { { 0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
-    { { 0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f },{ 0.0f, 1.0f } },
-    { { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } }
+    { { -0.5f, -0.5f, 0.0f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
+    { { 0.5f, -0.5f, 0.0f },{ 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
+    { { 0.5f, 0.5f, 0.0f },{ 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
+    { { -0.5f, 0.5f, 0.0f },{ 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
+
+    { { -0.5f, -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
+    { { 0.5f, -0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
+    { { 0.5f, 0.5f, -0.5f },{ 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
+    { { -0.5f, 0.5f, -0.5f },{ 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } }
 };
 
 
 // Indices that describe the order of vertices in shape's triangles.
 const std::vector<uint16_t> aiIndices = {
-    0, 1, 2,
-    2, 3, 0,
+    0, 1, 2, 2, 3, 0,
+    4, 5, 6, 6, 7, 4
 };
 
 
