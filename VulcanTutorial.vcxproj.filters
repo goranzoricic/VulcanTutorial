@@ -25,6 +25,9 @@
     <Filter Include="Shaders">
       <UniqueIdentifier>{4561bff4-e7f0-4846-a354-e6c60311dc6a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ThirdParty">
+      <UniqueIdentifier>{b60467e7-d6bf-4b91-9978-9af2565f2416}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="VulcanTest.cpp">
@@ -70,6 +73,9 @@
     </ClInclude>
     <ClInclude Include="GfxAPI\Window.h">
       <Filter>Source Files\GfxAPI</Filter>
+    </ClInclude>
+    <ClInclude Include="ThirdParty\stb_image.h">
+      <Filter>ThirdParty</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

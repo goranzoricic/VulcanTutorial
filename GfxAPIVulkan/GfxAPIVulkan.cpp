@@ -7,11 +7,14 @@
 #include "../Options.h"
 #include "../GfxAPI/Window.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "../ThirdParty/stb_image.h"
 
 // NOTE: refactor this
 struct Vertex {
     glm::vec2 vecPosition;
     glm::vec3 colColor;
+    glm::vec2 vecTexCoords;
 
     // Describe to the Vulkan API how to handle Vertex data.
     static VkVertexInputBindingDescription GetBindingDescription() {
@@ -50,16 +53,26 @@ struct Vertex {
         // offset of this attribute from the start of the data block
         adescAttributes[1].offset = offsetof(Vertex, colColor);
 
+        // set up the description of the texture coordinates
+        // data comes from the binding 0 (set up above)
+        adescAttributes[1].binding = 0;
+        // data goes to the location 0 (specified in the vertex shader)
+        adescAttributes[1].location = 2;
+        // data is three 32bit floats (red, green, blue)
+        adescAttributes[1].format = VK_FORMAT_R32G32_SFLOAT;
+        // offset of this attribute from the start of the data block
+        adescAttributes[1].offset = offsetof(Vertex, vecTexCoords);
+
         return adescAttributes;
     };
 };
 
 // Vertices that the drawn shape consists of.
 const std::vector<Vertex> avVertices = {
-    { { -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f } },
-    { { 0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f } },
-    { { 0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f } },
-    { { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f } } 
+    { { -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f },{ 1.0f, 0.0f } },
+    { { 0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f },{ 0.0f, 0.0f } },
+    { { 0.5f, 0.5f },{ 0.0f, 0.0f, 1.0f },{ 0.0f, 1.0f } },
+    { { -0.5f, 0.5f },{ 1.0f, 1.0f, 1.0f },{ 1.0f, 1.0f } }
 };
 
 
@@ -128,6 +141,14 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     CreateFramebuffers();
     // create the command pool
     CreateCommandPool();
+
+    // create a texture
+    CreateTextureImage();
+    // create a texture view
+    CreateTextureImageVeiw();
+    // create a sampler for the texture
+    CreateImageSampler();
+
     // create the vertex buffer
     CreateVertexBuffers();
     // create the index buffer
@@ -168,6 +189,15 @@ bool GfxAPIVulkan::Destroy() {
     vkDestroyBuffer(vkdevLogicalDevice, vkhUniformBuffer, nullptr);
     // release memory used by the uniform buffer
     vkFreeMemory(vkdevLogicalDevice, vkhUniformBufferMemory, nullptr);
+
+    // destroy the texture sampler
+    vkDestroySampler(vkdevLogicalDevice, vkhImageSampler, nullptr);
+    // destroy the image view for the texture
+    vkDestroyImageView(vkdevLogicalDevice, vkhImageView, nullptr);
+    // destroy the texture
+    vkDestroyImage(vkdevLogicalDevice, vkhImageData, nullptr);
+    // release memory used by the texture
+    vkFreeMemory(vkdevLogicalDevice, vkhImageMemory, nullptr);
 
     // destroy the vertex buffer
     vkDestroyBuffer(vkdevLogicalDevice, vkhVertexBuffer, nullptr);
@@ -451,7 +481,7 @@ bool GfxAPIVulkan::CheckValidationLayerSupport() {
 // Set up the validation error callback
 void GfxAPIVulkan::SetupValidationErrorCallback() {
     // if validation layers are not enable, don't try to set up the callback
-    if (Options::Get().ShouldUseValidationLayers()) {
+    if (!Options::Get().ShouldUseValidationLayers()) {
         return;
     }
     // prepare the struct to create the callback
@@ -535,6 +565,11 @@ bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) {
     // get the data about supported features
     VkPhysicalDeviceFeatures deviceFeatures;
     vkGetPhysicalDeviceFeatures(device, &deviceFeatures);
+
+    // the device must support anisotropy
+    if (!deviceFeatures.samplerAnisotropy) {
+        return false;
+    }
 
     // NOTE: This is only an example of device property and feature selection, the real implementation would be more elaborate
     // and would probably select the best device available
@@ -707,14 +742,14 @@ void GfxAPIVulkan::SelectSwapChainFormat() {
     // doesn't care which format is use, so we pick the one that suits us best
     // NOTE: look into using VK_COLOR_SPACE_SCRGB_LINEAR_EXT instead
     if (aFormats.size() == 1 && aFormats[0].format == VK_FORMAT_UNDEFINED) {
-        sfmtFormat = { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
+        sfmtFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
         return;
     }
 
     // otherwise, try to find the desired format among the returned formats
     for (const auto &format : aFormats) {
-        if (format.colorSpace == VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT && format.format == VK_FORMAT_B8G8R8A8_UNORM) {
-            sfmtFormat = { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
+        if (format.colorSpace == VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT && format.format == VK_FORMAT_R8G8B8A8_UNORM) {
+            sfmtFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
             return;
         }
     }
@@ -765,37 +800,10 @@ void GfxAPIVulkan::CreateImageViews() {
     // resize the array to the correct number of views
     aimgvImageViews.resize(aimgImages.size());
 
-    // prepare the create info
-    VkImageViewCreateInfo ciImageView = {};
-    ciImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-
-    // use it as a 2D texture (could be 1D, 2D, 3D, cube map)
-    ciImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    // set the format
-    ciImageView.format = sfmtFormat.format;
-
-    // set the channel mappings, use defaults
-    // this allowes to bind various things to channels - swap channels around, 0, 1...
-    ciImageView.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    ciImageView.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    ciImageView.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    ciImageView.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-
-    // specify that thi should be a color target, without any layers or mip maps
-    ciImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    ciImageView.subresourceRange.baseMipLevel = 0;
-    ciImageView.subresourceRange.levelCount = 1;
-    ciImageView.subresourceRange.baseArrayLayer = 0;
-    ciImageView.subresourceRange.layerCount = 1;
-
     // for each swap chain image, create the view
     for (size_t iImage = 0; iImage < aimgImages.size(); ++iImage) {
-        // set the image handle
-        ciImageView.image = aimgImages[iImage];
         // create the image view
-        if (vkCreateImageView(vkdevLogicalDevice, &ciImageView, nullptr, &aimgvImageViews[iImage]) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create an image view");
-        }
+        aimgvImageViews[iImage] = CreateImageView(aimgImages[iImage], sfmtFormat.format);
     }
 }
 
@@ -839,6 +847,10 @@ void GfxAPIVulkan::CreateLogicalDevice() {
     // list the needed device features
     // NOTE: not specifying any for now, will revisit later
     VkPhysicalDeviceFeatures deviceFeatures = {};
+    // request texture sampling anisotropy
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
+
+    // set required features
     ciLogicalDeviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
     // enable the required extensions
@@ -983,23 +995,40 @@ void GfxAPIVulkan::CreateRenderPass() {
 
 // Create descriptor sets - used to bind uniforms to shaders.
 void GfxAPIVulkan::CreateDescriptorSetLayout() {
-    // describe the descriptor set binding
-    VkDescriptorSetLayoutBinding infoDescriptorSetBinding = {};
+    // describe the descriptor set binding for the uniform buffer
+    VkDescriptorSetLayoutBinding infoUniformBinding = {};
     // set the binding index (defined in the shader)
-    infoDescriptorSetBinding.binding = 0;
+    infoUniformBinding.binding = 0;
     // this describes a uniform buffer
-    infoDescriptorSetBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    infoUniformBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     // it contains a single uniform buffer object
-    infoDescriptorSetBinding.descriptorCount = 1;
+    infoUniformBinding.descriptorCount = 1;
     // the descriptor set is meant for the vertex program
-    infoDescriptorSetBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+    infoUniformBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+    // describe the descriptor set binding for the texture sampler
+    VkDescriptorSetLayoutBinding infoSamplerBinding = {};
+    // set the binding index (defined in the shader)
+    infoSamplerBinding.binding = 1;
+    // this describes a uniform buffer
+    infoSamplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    // it contains a single uniform buffer object
+    infoSamplerBinding.descriptorCount = 1;
+    // the descriptor set is meant for the vertex program
+    infoSamplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+    // no immutable samplers
+    infoSamplerBinding.pImmutableSamplers = nullptr;
+
 
     // describe the descriptor set layout
     VkDescriptorSetLayoutCreateInfo infoDescriptorSetLayout = {};
     infoDescriptorSetLayout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+
+    // create an array of layout bindings
+    std::array<VkDescriptorSetLayoutBinding, 2> ainfoBindings = { infoUniformBinding, infoSamplerBinding };
     // set the binding description
-    infoDescriptorSetLayout.bindingCount = 1;
-    infoDescriptorSetLayout.pBindings = &infoDescriptorSetBinding;
+    infoDescriptorSetLayout.bindingCount = static_cast<uint32_t>(ainfoBindings.size());
+    infoDescriptorSetLayout.pBindings = ainfoBindings.data();
 
     // create the layout
     if (vkCreateDescriptorSetLayout(vkdevLogicalDevice, &infoDescriptorSetLayout, nullptr, &vkhDescriptorSetLayout) != VK_SUCCESS) {
@@ -1048,7 +1077,7 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	ciVertexInput.pVertexAttributeDescriptions = adescAttributes.data();
 
 	// describe the topology and if primitive restart will be used
-	VkPipelineInputAssemblyStateCreateInfo ciInputAssembly;
+    VkPipelineInputAssemblyStateCreateInfo ciInputAssembly = {};
     ciInputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	// triangle list will be used
 	ciInputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -1266,7 +1295,7 @@ void GfxAPIVulkan::CreateCommandBuffers() {
     acbufCommandBuffers.resize(atgtFramebuffers.size());
 
     // describe the allocation of command buffers - all will be allocated with one call
-    VkCommandBufferAllocateInfo ciAllocateBuffers;
+    VkCommandBufferAllocateInfo ciAllocateBuffers = {};
     ciAllocateBuffers.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     // bind the command pool
     ciAllocateBuffers.commandPool = vkhCommandPool;
@@ -1365,6 +1394,262 @@ void GfxAPIVulkan::DestroySemaphores() {
 }
 
 
+// Create a texture.
+void GfxAPIVulkan::CreateTextureImage() {
+    // load the image ising the stb library
+    int dimWidth, dimHeight, ctChannels;
+    stbi_uc *imgRawData = stbi_load("d:/Work/VulcanTutorial/Shaders/texture.jpg", &dimWidth, &dimHeight, &ctChannels, STBI_rgb_alpha);
+
+    // if the image failed to load, throw an exception
+    if (!imgRawData) {
+        throw std::runtime_error("Failed to load the texture.");
+    }
+
+    // image is four channels per pixel
+    VkDeviceSize ctImageSize = dimWidth * dimHeight * 4;
+
+    // create a staging buffer - it is a source in a memory transfer operation, and is located on the host
+    VkBuffer vkhStagingBuffer;
+    VkDeviceMemory vkhStagingMemory;
+    CreateBuffer(ctImageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vkhStagingBuffer, vkhStagingMemory);
+
+    // to copy the image values to GPU memory, it first needs to be mapped to CPU
+    void *pMappedMemory;
+    vkMapMemory(vkdevLogicalDevice, vkhStagingMemory, 0, ctImageSize, 0, &pMappedMemory);
+    // copy the buffer to mapped memory
+    memcpy(pMappedMemory, imgRawData, ctImageSize);
+    // unmap memory, let the GPU take over
+    vkUnmapMemory(vkdevLogicalDevice, vkhStagingMemory);
+
+    // release texture memory
+    stbi_image_free(imgRawData);
+
+    // create the image
+    CreateImage(dimWidth, dimHeight, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkhImageData, vkhImageMemory);
+    // prepare the image to receive data from the staging buffer
+    TransitionImageLayout(vkhImageData, VK_FORMAT_R8G8B8A8_UNORM, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+    // copy data from the staging buffer to the image
+    CoypBufferToImage(vkhStagingBuffer, vkhImageData, dimWidth, dimHeight);
+
+    // destroy the staging buffer
+    vkDestroyBuffer(vkdevLogicalDevice, vkhStagingBuffer, nullptr);
+    // free buffer memory
+    vkFreeMemory(vkdevLogicalDevice, vkhStagingMemory, nullptr);
+}
+
+
+// Create a view for the texture.
+void GfxAPIVulkan::CreateTextureImageVeiw() {
+    vkhImageView = CreateImageView(vkhImageData, VK_FORMAT_R8G8B8A8_UNORM);
+}
+
+
+// Create a sampler for the texture.
+void GfxAPIVulkan::CreateImageSampler() {
+    // describe the texture sampler
+    VkSamplerCreateInfo infoSampler = {};
+    infoSampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    // use linear filter for magnification and minification
+    infoSampler.magFilter = VK_FILTER_LINEAR;
+    infoSampler.minFilter = VK_FILTER_LINEAR;
+    // set tiling mode to repeat for all coordinate axes
+    infoSampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    infoSampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    infoSampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    // set anisotyopy to 16x
+    infoSampler.anisotropyEnable = VK_TRUE;
+    infoSampler.maxAnisotropy = 16;
+    // if sampling out of bounds, return black - only valid for clamp to border mode
+    infoSampler.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    // for UV coordinates, use [0,1) range - uses [0, texture_size) if TRUE
+    infoSampler.unnormalizedCoordinates = VK_FALSE;
+    // set compare options - not used in this filtering method
+    infoSampler.compareEnable = VK_FALSE;
+    infoSampler.compareOp = VK_COMPARE_OP_ALWAYS;
+    // set mipmaping options to no mipmaps
+    infoSampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    infoSampler.mipLodBias = 0.0f;
+    infoSampler.minLod = 0.0f;
+    infoSampler.maxLod = 0.0f;
+
+    // create the sampler
+    if (vkCreateSampler(vkdevLogicalDevice, &infoSampler, nullptr, &vkhImageSampler) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the texture sampler");
+    }
+}
+
+
+// Create an image view
+VkImageView GfxAPIVulkan::CreateImageView(VkImage vkhImage, VkFormat fmtFormat) {
+
+    // describe the image view
+    VkImageViewCreateInfo infoImageView = {};
+    infoImageView.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    // set the image
+    infoImageView.image = vkhImage;
+    // it is a view into a RGBA 2D texture
+    infoImageView.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    infoImageView.format = fmtFormat;
+    // it is color map with no mipmaps or layers
+    infoImageView.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    infoImageView.subresourceRange.layerCount = 1;
+    infoImageView.subresourceRange.baseArrayLayer = 0;
+    infoImageView.subresourceRange.levelCount = 1;
+    infoImageView.subresourceRange.baseMipLevel = 0;
+
+    // create the image view
+    VkImageView vkhView;
+    if (vkCreateImageView(vkdevLogicalDevice, &infoImageView, nullptr, &vkhView) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create an image view");
+    }
+
+    return vkhView;
+}
+
+// Create an image.
+void GfxAPIVulkan::CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat fmtFormat, VkImageTiling imtTiling, VkImageUsageFlags flagUsage, VkMemoryPropertyFlags flagMemoryProperties, VkImage &vkhImage, VkDeviceMemory &vkhMemory) {
+    // describe the image
+    VkImageCreateInfo infoImage = {};
+    infoImage.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    // this is a 2D image (a regular texture)
+    infoImage.imageType = VK_IMAGE_TYPE_2D;
+    // set image dimensions
+    infoImage.extent.width = dimWidth;
+    infoImage.extent.height = dimHeight;
+    infoImage.extent.depth = 1;
+    // no mipmaps
+    infoImage.mipLevels = 1;
+    // not an image array
+    infoImage.arrayLayers = 1;
+    // set the image format
+    infoImage.format = fmtFormat;
+    // use the optimal tiling (won't be able to directly access texels)
+    infoImage.tiling = imtTiling;
+    // set the initial layout - not needed to preserve original pixels after transfer
+    infoImage.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    // image will be used as a target for memory transfer and to sample from in the shader
+    infoImage.usage = flagUsage;
+    // it will be used by only one queue family (graphics)
+    infoImage.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    // no multisampling
+    infoImage.samples = VK_SAMPLE_COUNT_1_BIT;
+    // default flags
+    infoImage.flags = 0;
+
+    // create the image
+    if (vkCreateImage(vkdevLogicalDevice, &infoImage, nullptr, &vkhImage) != VK_SUCCESS) {
+        throw std::runtime_error("Failed to create the image");
+    }
+
+    // get the buffer's memory requirements
+    VkMemoryRequirements propsMemoryRequirements = {};
+    vkGetImageMemoryRequirements(vkdevLogicalDevice, vkhImage, &propsMemoryRequirements);
+
+    // describe the memory allocation
+    VkMemoryAllocateInfo infoImageMemory = {};
+    infoImageMemory.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    // how much memory to allocate
+    infoImageMemory.allocationSize = propsMemoryRequirements.size;
+    // find the appropriate memory type
+    infoImageMemory.memoryTypeIndex = FindMemoryType(propsMemoryRequirements.memoryTypeBits, flagMemoryProperties);
+
+    // allocate the memory for the image
+    if (vkAllocateMemory(vkdevLogicalDevice, &infoImageMemory, nullptr, &vkhMemory) != VK_SUCCESS) {
+        throw std::runtime_error("Unable to allocate memory for the image");
+    }
+
+    // after a successfull allocation, bind the memory to the image
+    vkBindImageMemory(vkdevLogicalDevice, vkhImage, vkhMemory, 0);
+}
+
+
+// Change image layout to what is needed for rendering.
+void GfxAPIVulkan::TransitionImageLayout(VkImage vkhImage, VkFormat fmtFormat, VkImageLayout imlOldLayout, VkImageLayout imlNewLayout) {
+    // begin recording a one time command buffer
+    VkCommandBuffer vkhCommandBuffer = BeginOneTimeCommand();
+
+    // use an image memory barrier to transition the image
+    VkImageMemoryBarrier infoImageMemoryBarrier = {};
+    infoImageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    // set source and destination layouts
+    infoImageMemoryBarrier.oldLayout = imlOldLayout;
+    infoImageMemoryBarrier.newLayout = imlNewLayout;
+    // not transferring queue family ownership, so queue indices don't matter
+    infoImageMemoryBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    infoImageMemoryBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    // set the image
+    infoImageMemoryBarrier.image = vkhImage;
+    // this is a color image
+    infoImageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    // not a 3D image, so only one layer
+    infoImageMemoryBarrier.subresourceRange.layerCount = 1;
+    infoImageMemoryBarrier.subresourceRange.baseArrayLayer = 0;
+    // no mipmaps either
+    infoImageMemoryBarrier.subresourceRange.levelCount = 1;
+    infoImageMemoryBarrier.subresourceRange.baseMipLevel = 0;
+
+    // if transfering from an undefined layout to transfer destination 
+    VkPipelineStageFlags flagSourceStage;
+    VkPipelineStageFlags flagDestinationStage;
+    if (imlOldLayout == VK_IMAGE_LAYOUT_UNDEFINED && imlNewLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) {
+        // no need to wait on anything
+        infoImageMemoryBarrier.srcAccessMask = 0;
+        infoImageMemoryBarrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+        // start at the earliest pipeline stage there is
+        flagSourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        flagDestinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    // else, if transitioning to prepare for reads from the shader
+    } else if (imlOldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && imlNewLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        // need to wait for any transfer to finish
+        infoImageMemoryBarrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        infoImageMemoryBarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+        // start at the transfer stage
+        flagSourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+        flagDestinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+
+    // record a pipeline barrier command to the buffer
+    vkCmdPipelineBarrier(vkhCommandBuffer, flagSourceStage, flagDestinationStage, 0, 0, nullptr, 0, nullptr, 1, &infoImageMemoryBarrier);
+
+    // finish recording and submit the buffer
+    EndOneTimeCommand(vkhCommandBuffer);
+}
+
+
+// Copy a buffer to the image.
+void GfxAPIVulkan::CoypBufferToImage(VkBuffer vkhBuffer, VkImage vkhImage, uint32_t dimWidth, uint32_t dimHeight) {
+    // begin recording a one time command buffer
+    VkCommandBuffer vkhCommandBuffer = BeginOneTimeCommand();
+
+    // prepare the copy command
+    VkBufferImageCopy infoCopyCommand = {};
+    // copyign the whole buffer
+    infoCopyCommand.bufferOffset = 0;
+    // this specifies that pixels are tightly packed
+    infoCopyCommand.bufferImageHeight = 0;
+    infoCopyCommand.bufferRowLength = 0;
+
+    // this is a color image
+    infoCopyCommand.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    // not a 3D image, so only one layer
+    infoCopyCommand.imageSubresource.layerCount = 1;
+    infoCopyCommand.imageSubresource.baseArrayLayer = 0;
+    // no mipmaps either
+    infoCopyCommand.imageSubresource.mipLevel = 0;
+
+    // copy the entire image
+    infoCopyCommand.imageOffset = { 0, 0, 0 };
+    infoCopyCommand.imageExtent = { dimWidth, dimHeight, 1 };
+
+    // record the command to copy the buffer to the image
+    vkCmdCopyBufferToImage(vkhCommandBuffer, vkhBuffer, vkhImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &infoCopyCommand);
+    // finish recording and submit the buffer
+    EndOneTimeCommand(vkhCommandBuffer);
+}
+
+
 // Create vertex buffers.
 void GfxAPIVulkan::CreateVertexBuffers() {
     // create the vertex buffer
@@ -1438,18 +1723,22 @@ void GfxAPIVulkan::CreateUniformBuffers() {
 // create the descriptor pool
 void GfxAPIVulkan::CreateDescriptorPool() {
     // describe the descriptors that go into this pool
-    VkDescriptorPoolSize infoPoolSize = {};
-    // it's the pool for uniform buffer descriptors
-    infoPoolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    // it holds one descriptor
-    infoPoolSize.descriptorCount = 1;
+    std::array<VkDescriptorPoolSize, 2> ainfoPoolSizes = {};
+    // the first one is the pool for uniform buffer descriptors
+    ainfoPoolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    // it can allocate one descriptor
+    ainfoPoolSizes[0].descriptorCount = 1;
+    // the second one is the pool of image samplers
+    ainfoPoolSizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    // it can allocate one descriptor
+    ainfoPoolSizes[1].descriptorCount = 1;
 
     // describe the descriptor pool
     VkDescriptorPoolCreateInfo infoDescriptorPool = {};
     infoDescriptorPool.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     // this descriptor pool has one pool size info
-    infoDescriptorPool.poolSizeCount = 1;
-    infoDescriptorPool.pPoolSizes = &infoPoolSize;
+    infoDescriptorPool.poolSizeCount = static_cast<uint32_t>(ainfoPoolSizes.size());
+    infoDescriptorPool.pPoolSizes = ainfoPoolSizes.data();
     // maximuma of one descriptor sets will be allocated
     infoDescriptorPool.maxSets = 1;
 
@@ -1488,24 +1777,49 @@ void GfxAPIVulkan::CreateDescriptorSet() {
     // size is equal to the buffer object's
     infoUniformBuffer.range = sizeof(UniformBufferObject);
 
-    // describe how to update the descriptor set
-    VkWriteDescriptorSet infoUpdateDescriptorSet = {};
-    infoUpdateDescriptorSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    // mark the set tu update
-    infoUpdateDescriptorSet.dstSet = vkhDescriptorSet;
-    // set the shader binding
-    infoUpdateDescriptorSet.dstBinding = 0;
+    // a descriptor for the image sampler
+    VkDescriptorImageInfo infoImage = {};
+    // set the image layout to optimal for reading from a fragment shader
+    infoImage.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    // set the image view and sampler
+    infoImage.imageView = vkhImageView;
+    infoImage.sampler = vkhImageSampler;
+
+    // describe how to update the descriptor sets
+    std::array<VkWriteDescriptorSet, 2> ainfoUpdateDescriptorSets = {};
+
+    // describe the set for the uniform buffer
+    ainfoUpdateDescriptorSets[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    // mark the set to update
+    ainfoUpdateDescriptorSets[0].dstSet = vkhDescriptorSet;
+    // set the shader binding for the uniform
+    ainfoUpdateDescriptorSets[0].dstBinding = 0;
     // the descriptor doesn't describe an array
-    infoUpdateDescriptorSet.dstArrayElement = 0;
+    ainfoUpdateDescriptorSets[0].dstArrayElement = 0;
     // this descriptor describes an uniform buffer
-    infoUpdateDescriptorSet.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    ainfoUpdateDescriptorSets[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
     // it holds one descriptor
-    infoUpdateDescriptorSet.descriptorCount = 1;
+    ainfoUpdateDescriptorSets[0].descriptorCount = 1;
     // bind the buffer info
-    infoUpdateDescriptorSet.pBufferInfo = &infoUniformBuffer;
+    ainfoUpdateDescriptorSets[0].pBufferInfo = &infoUniformBuffer;
+
+    // describe the set for the image sampler
+    ainfoUpdateDescriptorSets[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    // mark the set to update
+    ainfoUpdateDescriptorSets[1].dstSet = vkhDescriptorSet;
+    // set the shader binding for the sampler
+    ainfoUpdateDescriptorSets[1].dstBinding = 1;
+    // the descriptor doesn't describe an array
+    ainfoUpdateDescriptorSets[1].dstArrayElement = 0;
+    // this descriptor describes a texture sampler
+    ainfoUpdateDescriptorSets[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    // it holds one descriptor
+    ainfoUpdateDescriptorSets[1].descriptorCount = 1;
+    // bind the sampler
+    ainfoUpdateDescriptorSets[1].pImageInfo = &infoImage;
 
     // apply updates to the descriptor
-    vkUpdateDescriptorSets(vkdevLogicalDevice, 1, &infoUpdateDescriptorSet, 0, nullptr);
+    vkUpdateDescriptorSets(vkdevLogicalDevice, static_cast<uint32_t>(ainfoUpdateDescriptorSets.size()), ainfoUpdateDescriptorSets.data(), 0, nullptr);
 }
 
 
@@ -1550,6 +1864,25 @@ void GfxAPIVulkan::CreateBuffer(VkDeviceSize ctSize, VkBufferUsageFlags flgBuffe
 
 // Copy memory from one buffer to the other.
 void GfxAPIVulkan::CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationBuffer, VkDeviceSize ctSize) {
+    // begin recording a one time command buffer
+    VkCommandBuffer vkhCommandBuffer = BeginOneTimeCommand();
+
+    // create the copy command - copies start from beggining, size is the size specified in the input arguments
+    VkBufferCopy cmdCopy = {};
+    cmdCopy.srcOffset = 0;
+    cmdCopy.dstOffset = 0;
+    cmdCopy.size = ctSize;
+
+    // run the copy command
+    vkCmdCopyBuffer(vkhCommandBuffer, vkhSourceBuffer, vkhDestinationBuffer, 1, &cmdCopy);
+
+    // finish recording and submit the buffer
+    EndOneTimeCommand(vkhCommandBuffer);
+}
+
+
+// Start one time command recording.
+VkCommandBuffer GfxAPIVulkan::BeginOneTimeCommand() {
     // create a temporary command buffer
     VkCommandBufferAllocateInfo infoCommandBuffer = {};
     infoCommandBuffer.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
@@ -1560,7 +1893,7 @@ void GfxAPIVulkan::CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationB
     // only one buffer will be allocated
     infoCommandBuffer.commandBufferCount = 1;
 
-    // allocate teh buffer
+    // allocate the buffer
     VkCommandBuffer vkhCommandBuffer = {};
     vkAllocateCommandBuffers(vkdevLogicalDevice, &infoCommandBuffer, &vkhCommandBuffer);
 
@@ -1573,15 +1906,12 @@ void GfxAPIVulkan::CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationB
     // start recording
     vkBeginCommandBuffer(vkhCommandBuffer, &infoBegin);
 
-    // create the copy command - copies start from beggining, size is the size specified in the input arguments
-    VkBufferCopy cmdCopy = {};
-    cmdCopy.srcOffset = 0;
-    cmdCopy.dstOffset = 0;
-    cmdCopy.size = ctSize;
+    return vkhCommandBuffer;
+}
 
-    // run the copy command
-    vkCmdCopyBuffer(vkhCommandBuffer, vkhSourceBuffer, vkhDestinationBuffer, 1, &cmdCopy);
 
+// Finish one time command recording.
+void GfxAPIVulkan::EndOneTimeCommand(VkCommandBuffer vkhCommandBuffer) {
     // stop recording the buffer
     vkEndCommandBuffer(vkhCommandBuffer);
 
@@ -1600,6 +1930,7 @@ void GfxAPIVulkan::CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationB
     // clean up the command buffer
     vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool, 1, &vkhCommandBuffer);
 }
+
 
 
 // Get the graphics memory type with the desired properties.

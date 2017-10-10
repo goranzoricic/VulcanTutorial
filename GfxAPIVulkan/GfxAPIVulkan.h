@@ -30,11 +30,17 @@ private:
                     swcSwapChain(VK_NULL_HANDLE),
                     vkpassRenderPass(VK_NULL_HANDLE),
                     vkhDescriptorSetLayout(VK_NULL_HANDLE),
+                    vkhDescriptorPool(VK_NULL_HANDLE),
                     vkplPipelineLayout(VK_NULL_HANDLE),
                     vkgpipePipeline(VK_NULL_HANDLE),
                     vkhVertexBuffer(VK_NULL_HANDLE),
                     vkhVertexBufferMemory(VK_NULL_HANDLE),
-                    vkhDescriptorPool(VK_NULL_HANDLE)
+                    vkhUniformBuffer(VK_NULL_HANDLE),
+                    vkhUniformBufferMemory(VK_NULL_HANDLE),
+                    vkhImageData(VK_NULL_HANDLE),
+                    vkhImageMemory(VK_NULL_HANDLE),
+                    vkhImageView(VK_NULL_HANDLE),
+                    vkhImageSampler(VK_NULL_HANDLE)
     {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
@@ -148,6 +154,22 @@ private:
     // Delete the semaphores.
     void DestroySemaphores();
 
+    // Create a texture.
+    void CreateTextureImage();
+    // Create a view for the texture.
+    void CreateTextureImageVeiw();
+    // Create a sampler for the texture.
+    void CreateImageSampler();
+
+    // Create an image view
+    VkImageView CreateImageView(VkImage vkhImage, VkFormat fmtFormat);
+    // Create an image.
+    void CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat fmtFormat, VkImageTiling imtTiling, VkImageUsageFlags flagUsage, VkMemoryPropertyFlags flagMemoryProperties, VkImage &vkhImage, VkDeviceMemory &vkhMemory);
+    // Change image layout to what is needed for rendering.
+    void TransitionImageLayout(VkImage vkhImage, VkFormat fmtFormat, VkImageLayout imlOldLayout, VkImageLayout imlNewLayout);
+    // Copy a buffer to the image.
+    void CoypBufferToImage(VkBuffer vkhBuffer, VkImage vkhImage, uint32_t dimWidth, uint32_t dimHeight);
+
     // Create vertex buffer.
     void CreateVertexBuffers();
     // Create index buffer.
@@ -167,6 +189,10 @@ private:
     void CreateBuffer(VkDeviceSize ctSize, VkBufferUsageFlags flgBufferUsage, VkMemoryPropertyFlags flagMemoryProperties, VkBuffer &vkhBuffer, VkDeviceMemory &vkhMemory);
     // Copy memory from one buffer to the other.
     void CopyBuffer(VkBuffer vkhSourceBuffer, VkBuffer vkhDestinationBuffer, VkDeviceSize ctSize);
+    // Start one time command recording.
+    VkCommandBuffer BeginOneTimeCommand();
+    // Finish one time command recording.
+    void EndOneTimeCommand(VkCommandBuffer vkhCommandBuffer);
 
 private:
     // Handle to the vulkan instance.
@@ -240,6 +266,15 @@ private:
     VkBuffer vkhVertexBuffer;
     // Memory used by the vertex buffer.
     VkDeviceMemory vkhVertexBufferMemory;
+
+    // Image buffer holding the order of vertices in triangles.
+    VkImage vkhImageData;
+    // Memory used by the Image buffer.
+    VkDeviceMemory vkhImageMemory;
+    // Image view describing how to access the image.
+    VkImageView vkhImageView;
+    // Sampler used in the fragment shader to read from the texture.
+    VkSampler vkhImageSampler;
 
     // Index buffer holding the order of vertices in triangles.
     VkBuffer vkhIndexBuffer;
