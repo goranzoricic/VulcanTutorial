@@ -13,5 +13,8 @@ public:
     virtual bool Initialize(uint32_t dimWidth, uint32_t dimHeight);
     // Destroy the API. Returns true if successfull.
     virtual bool Destroy();
+
+    // Render a frame.
+    virtual void Render();
 };
 

@@ -29,6 +29,9 @@ public:
     // Get the main application window.
     std::shared_ptr<Window> &GetWindow() { return _wndWindow;  }
 
+    // Render a frame.
+    virtual void Render() = 0;
+
 protected:
     // Constructor and destructor are only available to derived classes.
     GfxAPI() {};

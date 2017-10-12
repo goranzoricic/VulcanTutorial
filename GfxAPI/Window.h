@@ -20,7 +20,14 @@ public:
     void Close();
 
     // Get the handle to the underlying representation.
-    struct GLFWwindow *GetHandle() { return _wndWindow;  }
+    struct GLFWwindow *GetHandle() const { return _wndWindow;  }
+
+    // Get window width.
+    uint32_t GetWidth() const { return _dimWidth; }
+    // Get window height.
+    uint32_t GetHeight() const { return _dimHeight; }
+    // Make the window to update its dimensions from the underlying implementation.
+    void UpdateDimensions();
 
 private:
     // Window width and height.

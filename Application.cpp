@@ -42,10 +42,14 @@ void Application::InitializeGraphics() {
 
 // Program's main loop
 void Application::MainLoop() {
+    // cache the graphics API
+    GfxAPI *apiGfx = GfxAPI::Get();
+
 	// loop until the user closes the window
-    std::shared_ptr<Window> wndWindow = GfxAPI::Get()->GetWindow();
+    std::shared_ptr<Window> wndWindow = apiGfx->GetWindow();
 	while (!wndWindow->ShouldClose()) {
         wndWindow->ProcessMessages();
+        apiGfx->Render();
 	}
 }
 

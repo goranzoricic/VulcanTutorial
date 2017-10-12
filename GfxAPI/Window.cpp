@@ -32,3 +32,14 @@ void Window::ProcessMessages() {
 void Window::Close() {
     glfwDestroyWindow(_wndWindow);
 }
+
+// Make the window to update its dimensions from the underlying implementation.
+void Window::UpdateDimensions() {
+    // get dimensions from glfw
+    int dimWidth, dimHeight;
+    glfwGetWindowSize(_wndWindow, &dimWidth, &dimHeight);
+
+    // update window's cached values
+    _dimWidth = dimWidth;
+    _dimHeight = dimHeight;
+}
