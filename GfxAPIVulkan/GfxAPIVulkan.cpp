@@ -1743,7 +1743,7 @@ void GfxAPIVulkan::LoadModel() {
             // read the UV coordinaets
             vVertex.vecTexCoords = {
                 vatrVertexAttributes.texcoords[iVertex.texcoord_index * 2 + 0],
-                vatrVertexAttributes.texcoords[iVertex.texcoord_index * 2 + 1],
+                1.0f - vatrVertexAttributes.texcoords[iVertex.texcoord_index * 2 + 1],
             };
             // use constant color, white
             vVertex.colColor = { 1.0f, 1.0f, 1.0f };
@@ -2079,7 +2079,7 @@ void GfxAPIVulkan::UpdateUniformBuffer() {
     // genetate the matrices
     UniformBufferObject uboUniforms = {};
     // calculate the model transform
-    uboUniforms.tModel = glm::rotate(glm::mat4(1.0f), tmElapsedTime * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+    uboUniforms.tModel = glm::rotate(glm::mat4(1.0f), tmElapsedTime * glm::radians(-45.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     // calculate the view transform
     uboUniforms.tView = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     // calculate the prijection transform
