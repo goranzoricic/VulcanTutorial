@@ -20,3 +20,4 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #include "ThirdParty/stb_image.h"
+#include "ThirdParty/tiny_obj_loader.h"
