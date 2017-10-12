@@ -13,84 +13,6 @@
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "../ThirdParty/tiny_obj_loader.h"
 
-// NOTE: refactor this
-struct Vertex {
-    glm::vec3 vecPosition;
-    glm::vec3 colColor;
-    glm::vec2 vecTexCoords;
-
-    // Describe to the Vulkan API how to handle Vertex data.
-    static VkVertexInputBindingDescription GetBindingDescription() {
-        // describe the layout of a vertex
-        VkVertexInputBindingDescription descVertexInputBinding = {};
-        // index of the binding in the array of bindings
-        descVertexInputBinding.binding = 0;
-        // number of bytes from the start of one entry to the next
-        descVertexInputBinding.stride = sizeof(Vertex);
-        // move to next data entry after each vertex (could be instance)
-        descVertexInputBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-        return descVertexInputBinding;
-    };
-
-    // Describe each individual vertex attribute.
-    static std::array<VkVertexInputAttributeDescription, 3> GetAttributeDescriptions() {
-        std::array<VkVertexInputAttributeDescription, 3> adescAttributes = {};
-        // set up the description of the vertex position
-        // data comes from the binding 0 (set up above)
-        adescAttributes[0].binding = 0;
-        // data goes to the location 0 (specified in the vertex shader)
-        adescAttributes[0].location = 0;
-        // data is two 32bit floats (screen x, y)
-        adescAttributes[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        // offset of this attribute from the start of the data block
-        adescAttributes[0].offset = offsetof(Vertex, vecPosition);
-
-        // set up the description of the vertex color
-        // data comes from the binding 0 (set up above)
-        adescAttributes[1].binding = 0;
-        // data goes to the location 0 (specified in the vertex shader)
-        adescAttributes[1].location = 1;
-        // data is three 32bit floats (red, green, blue)
-        adescAttributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-        // offset of this attribute from the start of the data block
-        adescAttributes[1].offset = offsetof(Vertex, colColor);
-
-        // set up the description of the texture coordinates
-        // data comes from the binding 0 (set up above)
-        adescAttributes[2].binding = 0;
-        // data goes to the location 0 (specified in the vertex shader)
-        adescAttributes[2].location = 2;
-        // data is three 32bit floats (red, green, blue)
-        adescAttributes[2].format = VK_FORMAT_R32G32_SFLOAT;
-        // offset of this attribute from the start of the data block
-        adescAttributes[2].offset = offsetof(Vertex, vecTexCoords);
-
-        return adescAttributes;
-    };
-};
-
-// Vertices that the drawn shape consists of.
-const std::vector<Vertex> avVertices = {
-    { { -0.5f, -0.5f, 0.0f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
-    { { 0.5f, -0.5f, 0.0f },{ 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
-    { { 0.5f, 0.5f, 0.0f },{ 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
-    { { -0.5f, 0.5f, 0.0f },{ 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } },
-
-    { { -0.5f, -0.5f, -0.5f },{ 1.0f, 0.0f, 0.0f },{ 0.0f, 0.0f } },
-    { { 0.5f, -0.5f, -0.5f },{ 0.0f, 1.0f, 0.0f },{ 1.0f, 0.0f } },
-    { { 0.5f, 0.5f, -0.5f },{ 0.0f, 0.0f, 1.0f },{ 1.0f, 1.0f } },
-    { { -0.5f, 0.5f, -0.5f },{ 1.0f, 1.0f, 1.0f },{ 0.0f, 1.0f } }
-};
-
-
-// Indices that describe the order of vertices in shape's triangles.
-const std::vector<uint16_t> aiIndices = {
-    0, 1, 2, 2, 3, 0,
-    4, 5, 6, 6, 7, 4
-};
-
-
 // List of validation layers' names that we want to enable.
 const std::vector<const char*> validationLayers = {
     // this is a standard set of validation layers, not a single layer
@@ -160,6 +82,8 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
     // create a sampler for the texture
     CreateImageSampler();
 
+    // load the example model
+    LoadModel();
     // create the vertex buffer
     CreateVertexBuffers();
     // create the index buffer
@@ -1420,7 +1344,7 @@ void GfxAPIVulkan::RecordCommandBuffers() {
         VkDeviceSize actOffsets[] = { 0 };
         vkCmdBindVertexBuffers(cbufCommandBuffer, 0, 1, avkhBuffers, actOffsets);
         // bind the index buffer
-        vkCmdBindIndexBuffer(cbufCommandBuffer, vkhIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindIndexBuffer(cbufCommandBuffer, vkhIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
         // bind the descriptor sets
         vkCmdBindDescriptorSets(cbufCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkplPipelineLayout, 0, 1, &vkhDescriptorSet, 0, nullptr);
@@ -1478,7 +1402,7 @@ void GfxAPIVulkan::CreateDepthResources() {
 void GfxAPIVulkan::CreateTextureImage() {
     // load the image ising the stb library
     int dimWidth, dimHeight, ctChannels;
-    stbi_uc *imgRawData = stbi_load("d:/Work/VulcanTutorial/Shaders/texture.jpg", &dimWidth, &dimHeight, &ctChannels, STBI_rgb_alpha);
+    stbi_uc *imgRawData = stbi_load("d:/Work/VulcanTutorial/Shaders/chalet.jpg", &dimWidth, &dimHeight, &ctChannels, STBI_rgb_alpha);
 
     // if the image failed to load, throw an exception
     if (!imgRawData) {
@@ -1785,6 +1709,50 @@ void GfxAPIVulkan::CoypBufferToImage(VkBuffer vkhBuffer, VkImage vkhImage, uint3
     vkCmdCopyBufferToImage(vkhCommandBuffer, vkhBuffer, vkhImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &infoCopyCommand);
     // finish recording and submit the buffer
     EndOneTimeCommand(vkhCommandBuffer);
+}
+
+
+// Load the example model.
+void GfxAPIVulkan::LoadModel() {
+    // vertex attributes - position, normal, uv, color
+    tinyobj::attrib_t vatrVertexAttributes;
+    // object's meshes, named
+    std::vector<tinyobj::shape_t> ameshMeshes;
+    // materials used by the object
+    std::vector<tinyobj::material_t> amatMaterials;
+    // error string will be stored here, if any
+    std::string strError;
+
+    // load the model from the object file
+    if (!tinyobj::LoadObj(&vatrVertexAttributes, &ameshMeshes, &amatMaterials, &strError, "d:/Work/VulcanTutorial/Shaders/chalet.obj")) {
+        throw std::runtime_error("Failed to load the model:  " + strError);
+    }
+
+    // combine all meshes into a single vertex and index buffer
+    // go through all vertices in all meshes in the model
+    for (const auto &meshMesh : ameshMeshes) {
+        for (const auto iVertex : meshMesh.mesh.indices) {
+            // read vertex attributes
+            Vertex vVertex = {};
+            // read the position
+            vVertex.vecPosition = {
+                vatrVertexAttributes.vertices[iVertex.vertex_index * 3 + 0],
+                vatrVertexAttributes.vertices[iVertex.vertex_index * 3 + 1],
+                vatrVertexAttributes.vertices[iVertex.vertex_index * 3 + 2],
+            };
+            // read the UV coordinaets
+            vVertex.vecTexCoords = {
+                vatrVertexAttributes.texcoords[iVertex.texcoord_index * 2 + 0],
+                vatrVertexAttributes.texcoords[iVertex.texcoord_index * 2 + 1],
+            };
+            // use constant color, white
+            vVertex.colColor = { 1.0f, 1.0f, 1.0f };
+
+            // store vertex and its index
+            avVertices.push_back(vVertex);
+            aiIndices.push_back(static_cast<uint32_t>(aiIndices.size()));
+        }
+    }
 }
 
 
