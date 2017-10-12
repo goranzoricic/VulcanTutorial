@@ -10,6 +10,9 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "../ThirdParty/stb_image.h"
 
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "../ThirdParty/tiny_obj_loader.h"
+
 // NOTE: refactor this
 struct Vertex {
     glm::vec3 vecPosition;

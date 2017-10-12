@@ -171,6 +171,7 @@
     <ClInclude Include="Options.h" />
     <ClInclude Include="PrecompiledHeader.h" />
     <ClInclude Include="ThirdParty\stb_image.h" />
+    <ClInclude Include="ThirdParty\tiny_obj_loader.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\frag.spv" />
