@@ -201,18 +201,18 @@ void GfxAPIVulkan::DestroySwapChain() {
     vkFreeMemory(vkhLogicalDevice, vkhDepthImageMemory, nullptr);
 
     // delete the command buffers
-    if (acbufCommandBuffers.size() > 0) {
-        vkFreeCommandBuffers(vkhLogicalDevice, vkhCommandPool, (uint32_t)acbufCommandBuffers.size(), acbufCommandBuffers.data());
+    if (avkhCommandBuffers.size() > 0) {
+        vkFreeCommandBuffers(vkhLogicalDevice, vkhCommandPool, (uint32_t)avkhCommandBuffers.size(), avkhCommandBuffers.data());
     }
     // destroy the framebuffers
     DestroyFramebuffers();
 
     // destroy the pipeline
-    vkDestroyPipeline(vkhLogicalDevice, vkgpipePipeline, nullptr);
+    vkDestroyPipeline(vkhLogicalDevice, vkhPipeline, nullptr);
 	// destroy the pipeline layout
-	vkDestroyPipelineLayout(vkhLogicalDevice, vkplPipelineLayout, nullptr);
+	vkDestroyPipelineLayout(vkhLogicalDevice, vkhPipelineLayout, nullptr);
 	// destroy the render pass
-	vkDestroyRenderPass(vkhLogicalDevice, vkpassRenderPass, nullptr);
+	vkDestroyRenderPass(vkhLogicalDevice, vkhRenderPass, nullptr);
 	// destroy the image views
     DestroyImageViews();
     // destroy the swap chain
@@ -818,9 +818,9 @@ void GfxAPIVulkan::CreateLogicalDevice() {
     }
 
     // retreive the handle to the graphics queue
-    vkGetDeviceQueue(vkhLogicalDevice, iGraphicsQueueFamily, 0, &qGraphicsQueue);
+    vkGetDeviceQueue(vkhLogicalDevice, iGraphicsQueueFamily, 0, &vkhGraphicsQueue);
     // retreive the handle to the presentation
-    vkGetDeviceQueue(vkhLogicalDevice, iPresentationQueueFamily, 0, &qPresentationQueue);
+    vkGetDeviceQueue(vkhLogicalDevice, iPresentationQueueFamily, 0, &vkhPresentationQueue);
 }
 
 
@@ -956,7 +956,7 @@ void GfxAPIVulkan::CreateRenderPass() {
 	ciRenderPass.pAttachments = ainfoAttachments.data();
 
 	// finally, create the render pass
-	if (vkCreateRenderPass(vkhLogicalDevice, &ciRenderPass, nullptr, &vkpassRenderPass) != VK_SUCCESS) {
+	if (vkCreateRenderPass(vkhLogicalDevice, &ciRenderPass, nullptr, &vkhRenderPass) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create the render pass");
 	}
 
@@ -1160,7 +1160,7 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	ciPipelineLayout.pPushConstantRanges = 0;
 
 	// create the pipeline layout
-	if (vkCreatePipelineLayout(vkhLogicalDevice, &ciPipelineLayout, nullptr, &vkplPipelineLayout) != VK_SUCCESS) {
+	if (vkCreatePipelineLayout(vkhLogicalDevice, &ciPipelineLayout, nullptr, &vkhPipelineLayout) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create the pipeline layout!");
 	}
 
@@ -1197,16 +1197,16 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
     ciGraphicsPipeline.pColorBlendState = &ciColorBlendState;
     ciGraphicsPipeline.pDynamicState = nullptr;
     // set the pipeline layout
-    ciGraphicsPipeline.layout = vkplPipelineLayout;
+    ciGraphicsPipeline.layout = vkhPipelineLayout;
     // set up the render pass
-    ciGraphicsPipeline.renderPass = vkpassRenderPass;
+    ciGraphicsPipeline.renderPass = vkhRenderPass;
     ciGraphicsPipeline.subpass = 0;
     // this pipeline doesn't derive from another pipeline (could be done as an optimization)
     ciGraphicsPipeline.basePipelineHandle = VK_NULL_HANDLE;
     ciGraphicsPipeline.basePipelineIndex = -1;
 
     // create the graphics pipeline
-    if (vkCreateGraphicsPipelines(vkhLogicalDevice, VK_NULL_HANDLE, 1, &ciGraphicsPipeline, nullptr, &vkgpipePipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(vkhLogicalDevice, VK_NULL_HANDLE, 1, &ciGraphicsPipeline, nullptr, &vkhPipeline) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the graphics pipeline");
     }
 
@@ -1219,13 +1219,13 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 // Create the framebuffers.
 void GfxAPIVulkan::CreateFramebuffers() {
     // resize the frame buffer array to match the number of swap chain image views
-    atgtFramebuffers.resize(avkhImageViews.size());
+    avkhFramebuffers.resize(avkhImageViews.size());
 
     // prepare the common part of the framebuffer description
     VkFramebufferCreateInfo ciFramebuffer = {};
     ciFramebuffer.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     // bind the render pass
-    ciFramebuffer.renderPass = vkpassRenderPass;
+    ciFramebuffer.renderPass = vkhRenderPass;
     // set the extends for the frame buffer
     ciFramebuffer.width = exExtent.width;
     ciFramebuffer.height = exExtent.height;
@@ -1246,7 +1246,7 @@ void GfxAPIVulkan::CreateFramebuffers() {
         ciFramebuffer.attachmentCount = static_cast<uint32_t>(avkhAttachments.size());
 
         // create the framebuffer
-        if (vkCreateFramebuffer(vkhLogicalDevice, &ciFramebuffer, nullptr, &atgtFramebuffers[iImageView]) != VK_SUCCESS) {
+        if (vkCreateFramebuffer(vkhLogicalDevice, &ciFramebuffer, nullptr, &avkhFramebuffers[iImageView]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create a framebuffer");
         }
     }
@@ -1254,7 +1254,7 @@ void GfxAPIVulkan::CreateFramebuffers() {
 
 // Destroy the framebuffers.
 void GfxAPIVulkan::DestroyFramebuffers() {
-    for (VkFramebuffer tgtFramebuffer : atgtFramebuffers) {
+    for (VkFramebuffer tgtFramebuffer : avkhFramebuffers) {
         vkDestroyFramebuffer(vkhLogicalDevice, tgtFramebuffer, nullptr);
     }
 }
@@ -1279,7 +1279,7 @@ void GfxAPIVulkan::CreateCommandPool() {
 // Create the command buffers.
 void GfxAPIVulkan::CreateCommandBuffers() {
     // one command buffer is needed per framebuffer
-    acbufCommandBuffers.resize(atgtFramebuffers.size());
+    avkhCommandBuffers.resize(avkhFramebuffers.size());
 
     // describe the allocation of command buffers - all will be allocated with one call
     VkCommandBufferAllocateInfo ciAllocateBuffers = {};
@@ -1289,10 +1289,10 @@ void GfxAPIVulkan::CreateCommandBuffers() {
     // these are rimary buffers - can be directly submitted for execution
     ciAllocateBuffers.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     // set the number of buffers
-    ciAllocateBuffers.commandBufferCount = (uint32_t) acbufCommandBuffers.size();
+    ciAllocateBuffers.commandBufferCount = (uint32_t) avkhCommandBuffers.size();
 
     // allocate the command buffers
-    if (vkAllocateCommandBuffers(vkhLogicalDevice, &ciAllocateBuffers, acbufCommandBuffers.data()) != VK_SUCCESS) {
+    if (vkAllocateCommandBuffers(vkhLogicalDevice, &ciAllocateBuffers, avkhCommandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create allocate command buffers");
     }
 }
@@ -1317,7 +1317,7 @@ void GfxAPIVulkan::RecordCommandBuffers() {
     VkRenderPassBeginInfo ciRenderPassBegin = {};
     ciRenderPassBegin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     // bind the render pass definition
-    ciRenderPassBegin.renderPass = vkpassRenderPass;
+    ciRenderPassBegin.renderPass = vkhRenderPass;
     // set the render area
     ciRenderPassBegin.renderArea.offset = { 0,0 };
     ciRenderPassBegin.renderArea.extent = exExtent;
@@ -1326,18 +1326,18 @@ void GfxAPIVulkan::RecordCommandBuffers() {
     ciRenderPassBegin.pClearValues = acolClearColors.data();
 
     // record the same commands in all buffers
-    for (int iCommandBuffer = 0; iCommandBuffer < acbufCommandBuffers.size(); iCommandBuffer++) {
-        VkCommandBuffer &cbufCommandBuffer = acbufCommandBuffers[iCommandBuffer];
+    for (int iCommandBuffer = 0; iCommandBuffer < avkhCommandBuffers.size(); iCommandBuffer++) {
+        VkCommandBuffer &cbufCommandBuffer = avkhCommandBuffers[iCommandBuffer];
         // begin the command buffer
         vkBeginCommandBuffer(cbufCommandBuffer, &ciCommandBufferBegin);
 
         // bind the frame buffer to the render pass
-        ciRenderPassBegin.framebuffer = atgtFramebuffers[iCommandBuffer];
+        ciRenderPassBegin.framebuffer = avkhFramebuffers[iCommandBuffer];
 
         // issue (record) the command to begin the render pass, with the command executed from the primary buffer
         vkCmdBeginRenderPass(cbufCommandBuffer, &ciRenderPassBegin, VK_SUBPASS_CONTENTS_INLINE);
         // issue the command to bind the graphics pipeline
-        vkCmdBindPipeline(cbufCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkgpipePipeline);
+        vkCmdBindPipeline(cbufCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkhPipeline);
 
         // bind the vertex buffer
         VkBuffer avkhBuffers[] = { vkhVertexBuffer };
@@ -1347,7 +1347,7 @@ void GfxAPIVulkan::RecordCommandBuffers() {
         vkCmdBindIndexBuffer(cbufCommandBuffer, vkhIndexBuffer, 0, VK_INDEX_TYPE_UINT32);
 
         // bind the descriptor sets
-        vkCmdBindDescriptorSets(cbufCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkplPipelineLayout, 0, 1, &vkhDescriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(cbufCommandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, vkhPipelineLayout, 0, 1, &vkhDescriptorSet, 0, nullptr);
 
         // issue the draw command to draw index buffers
         vkCmdDrawIndexed(cbufCommandBuffer, static_cast<uint32_t>(aiIndices.size()), 1, 0, 0, 0);
@@ -1370,16 +1370,16 @@ void GfxAPIVulkan::CreateSemaphores() {
     ciSemaphore.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
     // cerate the semaphores
-    if (vkCreateSemaphore(vkhLogicalDevice, &ciSemaphore, nullptr, &syncImageAvailable) != VK_SUCCESS ||
-        vkCreateSemaphore(vkhLogicalDevice, &ciSemaphore, nullptr, &syncRender) != VK_SUCCESS) {
+    if (vkCreateSemaphore(vkhLogicalDevice, &ciSemaphore, nullptr, &vkhImageAvailableSemaphore) != VK_SUCCESS ||
+        vkCreateSemaphore(vkhLogicalDevice, &ciSemaphore, nullptr, &vkhRenderSemaphore) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create semaphores");
     }
 }
 
 // Delete the semaphores.
 void GfxAPIVulkan::DestroySemaphores() {
-    vkDestroySemaphore(vkhLogicalDevice, syncImageAvailable, nullptr);
-    vkDestroySemaphore(vkhLogicalDevice, syncRender, nullptr);
+    vkDestroySemaphore(vkhLogicalDevice, vkhImageAvailableSemaphore, nullptr);
+    vkDestroySemaphore(vkhLogicalDevice, vkhRenderSemaphore, nullptr);
 }
 
 
@@ -2029,9 +2029,9 @@ void GfxAPIVulkan::EndOneTimeCommand(VkCommandBuffer vkhCommandBuffer) {
     infoSubmitCopy.pCommandBuffers = &vkhCommandBuffer;
 
     // submit the queue for execution
-    vkQueueSubmit(qGraphicsQueue, 1, &infoSubmitCopy, VK_NULL_HANDLE);
+    vkQueueSubmit(vkhGraphicsQueue, 1, &infoSubmitCopy, VK_NULL_HANDLE);
     // wait for the commands to finish
-    vkQueueWaitIdle(qGraphicsQueue);
+    vkQueueWaitIdle(vkhGraphicsQueue);
 
     // clean up the command buffer
     vkFreeCommandBuffers(vkhLogicalDevice, vkhCommandPool, 1, &vkhCommandBuffer);
@@ -2105,7 +2105,7 @@ void GfxAPIVulkan::Render() {
     // setting max uint64 as the timeout (in nanoseconds) disables the timeout
     // when the image becomes available the syncImageAvailable semaphore will be signaled
     uint32_t iImage;
-    VkResult statusResult  = vkAcquireNextImageKHR(vkhLogicalDevice, vkhSwapChain, std::numeric_limits<uint64_t>::max(), syncImageAvailable, VK_NULL_HANDLE, &iImage);
+    VkResult statusResult  = vkAcquireNextImageKHR(vkhLogicalDevice, vkhSwapChain, std::numeric_limits<uint64_t>::max(), vkhImageAvailableSemaphore, VK_NULL_HANDLE, &iImage);
 
     // if acquiring the image failed because the swap chain has become incompatible with the surface
     if (statusResult == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -2122,7 +2122,7 @@ void GfxAPIVulkan::Render() {
     infSubmit.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
     // bind the image semaphore that the queue has to wait on before it starts executing
-    VkSemaphore asyncWait[] = { syncImageAvailable };
+    VkSemaphore asyncWait[] = { vkhImageAvailableSemaphore };
     infSubmit.waitSemaphoreCount = 1;
     infSubmit.pWaitSemaphores = asyncWait;
 
@@ -2133,15 +2133,15 @@ void GfxAPIVulkan::Render() {
 
     // bind the command buffer
     infSubmit.commandBufferCount = 1;
-    infSubmit.pCommandBuffers = &acbufCommandBuffers[iImage];
+    infSubmit.pCommandBuffers = &avkhCommandBuffers[iImage];
 
     // set the semaphores that will be signalled when the command buffers are executed
-    VkSemaphore asyncSignal[] = { syncRender };
+    VkSemaphore asyncSignal[] = { vkhRenderSemaphore };
     infSubmit.signalSemaphoreCount = 1;
     infSubmit.pSignalSemaphores = asyncSignal;
 
     // submit the command buffers to the queue
-    if (vkQueueSubmit(qGraphicsQueue, 1, &infSubmit, VK_NULL_HANDLE) != VK_SUCCESS) {
+    if (vkQueueSubmit(vkhGraphicsQueue, 1, &infSubmit, VK_NULL_HANDLE) != VK_SUCCESS) {
         throw std::runtime_error("Failed to submit draw command buffer");
     }
 
@@ -2164,7 +2164,7 @@ void GfxAPIVulkan::Render() {
     infPresent.pResults = nullptr;
 
     // present the queue
-    statusResult = vkQueuePresentKHR(qPresentationQueue, &infPresent);
+    statusResult = vkQueuePresentKHR(vkhPresentationQueue, &infPresent);
 
     // if presentation failed because the swap chain has become incompatible with the surface
     if (statusResult == VK_ERROR_OUT_OF_DATE_KHR) {

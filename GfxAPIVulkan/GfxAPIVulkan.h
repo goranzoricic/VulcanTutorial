@@ -284,36 +284,36 @@ private:
     // Index of a queue family that supports graphics commands.
     int iGraphicsQueueFamily;
     // Handle to the queue to submit graphics commands to.
-    VkQueue qGraphicsQueue;
+    VkQueue vkhGraphicsQueue;
 
     // Index of a graphics family with presentation support.
     int iPresentationQueueFamily;
     // Handle to the queue to use for presentation.
-    VkQueue qPresentationQueue;
+    VkQueue vkhPresentationQueue;
 
 	// Render pass applied to render objects.
-	VkRenderPass vkpassRenderPass;
+	VkRenderPass vkhRenderPass;
 	
     // Descriptor set layout for uniform buffers.
     VkDescriptorSetLayout vkhDescriptorSetLayout;
 
     // Layout of the graphics pipeline.
-	VkPipelineLayout vkplPipelineLayout;
+	VkPipelineLayout vkhPipelineLayout;
     // Graphics pipeline.
-    VkPipeline vkgpipePipeline;
+    VkPipeline vkhPipeline;
 
     // Framebuffers used to draw.
-    std::vector<VkFramebuffer> atgtFramebuffers;
+    std::vector<VkFramebuffer> avkhFramebuffers;
 
     // Command pool that will hold command buffers.
     VkCommandPool vkhCommandPool;
     // Command buffers to post the commands to.
-    std::vector<VkCommandBuffer> acbufCommandBuffers;
+    std::vector<VkCommandBuffer> avkhCommandBuffers;
 
     // Semephore used to sync target buffers.
-    VkSemaphore syncImageAvailable;
+    VkSemaphore vkhImageAvailableSemaphore;
     // Semaphore used to sync presentation.
-    VkSemaphore syncRender;
+    VkSemaphore vkhRenderSemaphore;
 
     // Vertex buffer holding the shape's vertices.
     VkBuffer vkhVertexBuffer;
