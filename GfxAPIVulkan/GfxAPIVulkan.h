@@ -257,29 +257,29 @@ private:
     VkSurfaceCapabilitiesKHR capsSurface;
 
     // Swap chain to use for rendering.
-    VkSwapchainKHR swcSwapChain;
+    VkSwapchainKHR vkhSwapChain;
     // Drawing formats that the device support.
-    std::vector<VkSurfaceFormatKHR> aFormats;
+    std::vector<VkSurfaceFormatKHR> afmtFormats;
     // Present modes supported by the surface.
-    std::vector<VkPresentModeKHR> aPresentModes;
+    std::vector<VkPresentModeKHR> apmPresentModes;
     // Handles to swap chain images.
-    std::vector<VkImage> aimgImages;
+    std::vector<VkImage> avkhImages;
     // Views to swap chain images.
-    std::vector<VkImageView> aimgvImageViews;
+    std::vector<VkImageView> avkhImageViews;
 
     // Swap chain format selected for use.
-    VkSurfaceFormatKHR sfmtFormat;
+    VkSurfaceFormatKHR fmtSurfaceFormat;
     // Present mode selected for use
-    VkPresentModeKHR spmPresentMode;
+    VkPresentModeKHR pmSurfacePresentMode;
     // Extent (resolution) selected for the swap chain.
-    VkExtent2D sexExtent;
+    VkExtent2D exExtent;
 
     // Handle to the debug callback.
-    VkDebugReportCallbackEXT clbkValidation;
+    VkDebugReportCallbackEXT vkhValidationCallback;
     // Physical device (graphics card) used.
-    VkPhysicalDevice vkdevPhysicalDevice;
+    VkPhysicalDevice vkhPhysicalDevice;
     // Logical device used.
-    VkDevice vkdevLogicalDevice;
+    VkDevice vkhLogicalDevice;
 
     // Index of a queue family that supports graphics commands.
     int iGraphicsQueueFamily;

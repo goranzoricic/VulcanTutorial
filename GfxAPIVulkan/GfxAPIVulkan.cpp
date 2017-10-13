@@ -111,46 +111,46 @@ bool GfxAPIVulkan::Initialize(uint32_t dimWidth, uint32_t dimHeight) {
 // Destroy the API. Returns true if successfull.
 bool GfxAPIVulkan::Destroy() {
     // wait for the logical device to finish its current batch of work
-    vkDeviceWaitIdle(vkdevLogicalDevice);
+    vkDeviceWaitIdle(vkhLogicalDevice);
 
     // destroy the swap chain
     DestroySwapChain();
     
     // destroy the desctiptor pool
-    vkDestroyDescriptorPool(vkdevLogicalDevice, vkhDescriptorPool, nullptr);
+    vkDestroyDescriptorPool(vkhLogicalDevice, vkhDescriptorPool, nullptr);
     // destroy the descriptor set layout
-    vkDestroyDescriptorSetLayout(vkdevLogicalDevice, vkhDescriptorSetLayout, nullptr);
+    vkDestroyDescriptorSetLayout(vkhLogicalDevice, vkhDescriptorSetLayout, nullptr);
     // destroy the uniform buffer
-    vkDestroyBuffer(vkdevLogicalDevice, vkhUniformBuffer, nullptr);
+    vkDestroyBuffer(vkhLogicalDevice, vkhUniformBuffer, nullptr);
     // release memory used by the uniform buffer
-    vkFreeMemory(vkdevLogicalDevice, vkhUniformBufferMemory, nullptr);
+    vkFreeMemory(vkhLogicalDevice, vkhUniformBufferMemory, nullptr);
 
     // destroy the texture sampler
-    vkDestroySampler(vkdevLogicalDevice, vkhImageSampler, nullptr);
+    vkDestroySampler(vkhLogicalDevice, vkhImageSampler, nullptr);
     // destroy the image view for the texture
-    vkDestroyImageView(vkdevLogicalDevice, vkhImageView, nullptr);
+    vkDestroyImageView(vkhLogicalDevice, vkhImageView, nullptr);
     // destroy the texture
-    vkDestroyImage(vkdevLogicalDevice, vkhImageData, nullptr);
+    vkDestroyImage(vkhLogicalDevice, vkhImageData, nullptr);
     // release memory used by the texture
-    vkFreeMemory(vkdevLogicalDevice, vkhImageMemory, nullptr);
+    vkFreeMemory(vkhLogicalDevice, vkhImageMemory, nullptr);
 
     // destroy the vertex buffer
-    vkDestroyBuffer(vkdevLogicalDevice, vkhVertexBuffer, nullptr);
+    vkDestroyBuffer(vkhLogicalDevice, vkhVertexBuffer, nullptr);
     // release memory used by the vertex buffer
-    vkFreeMemory(vkdevLogicalDevice, vkhVertexBufferMemory, nullptr);
+    vkFreeMemory(vkhLogicalDevice, vkhVertexBufferMemory, nullptr);
 
     // destroy the uniform buffer
-    vkDestroyBuffer(vkdevLogicalDevice, vkhIndexBuffer, nullptr);
+    vkDestroyBuffer(vkhLogicalDevice, vkhIndexBuffer, nullptr);
     // release memory used by the uniform buffer
-    vkFreeMemory(vkdevLogicalDevice, vkhIndexBufferMemory, nullptr);
+    vkFreeMemory(vkhLogicalDevice, vkhIndexBufferMemory, nullptr);
 
     // destroy semaphores
     DestroySemaphores();
     // destoy the command pool
-    vkDestroyCommandPool(vkdevLogicalDevice, vkhCommandPool, nullptr);
+    vkDestroyCommandPool(vkhLogicalDevice, vkhCommandPool, nullptr);
 
     // destroy the logical devics
-    vkDestroyDevice(vkdevLogicalDevice, nullptr);
+    vkDestroyDevice(vkhLogicalDevice, nullptr);
     // remove the validation callback
     DestroyValidationErrorCallback();
     // destroy the window surface
@@ -168,7 +168,7 @@ bool GfxAPIVulkan::Destroy() {
 // Initialize swap chain. Called on first initialization, but also on window resize.
 void GfxAPIVulkan::InitializeSwapChain() {
     // wait for the logical device to be idne
-    vkDeviceWaitIdle(vkdevLogicalDevice);
+    vkDeviceWaitIdle(vkhLogicalDevice);
 
     // destroy the swap chain
     DestroySwapChain();
@@ -194,29 +194,29 @@ void GfxAPIVulkan::InitializeSwapChain() {
 // Destroy the swap chain.
 void GfxAPIVulkan::DestroySwapChain() {
     // destroy the image view for depth
-    vkDestroyImageView(vkdevLogicalDevice, vkhDeptImageView, nullptr);
+    vkDestroyImageView(vkhLogicalDevice, vkhDeptImageView, nullptr);
     // destroy the depth bugger
-    vkDestroyImage(vkdevLogicalDevice, vkhDepthImageData, nullptr);
+    vkDestroyImage(vkhLogicalDevice, vkhDepthImageData, nullptr);
     // release memory used by the depth buffer
-    vkFreeMemory(vkdevLogicalDevice, vkhDepthImageMemory, nullptr);
+    vkFreeMemory(vkhLogicalDevice, vkhDepthImageMemory, nullptr);
 
     // delete the command buffers
     if (acbufCommandBuffers.size() > 0) {
-        vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool, (uint32_t)acbufCommandBuffers.size(), acbufCommandBuffers.data());
+        vkFreeCommandBuffers(vkhLogicalDevice, vkhCommandPool, (uint32_t)acbufCommandBuffers.size(), acbufCommandBuffers.data());
     }
     // destroy the framebuffers
     DestroyFramebuffers();
 
     // destroy the pipeline
-    vkDestroyPipeline(vkdevLogicalDevice, vkgpipePipeline, nullptr);
+    vkDestroyPipeline(vkhLogicalDevice, vkgpipePipeline, nullptr);
 	// destroy the pipeline layout
-	vkDestroyPipelineLayout(vkdevLogicalDevice, vkplPipelineLayout, nullptr);
+	vkDestroyPipelineLayout(vkhLogicalDevice, vkplPipelineLayout, nullptr);
 	// destroy the render pass
-	vkDestroyRenderPass(vkdevLogicalDevice, vkpassRenderPass, nullptr);
+	vkDestroyRenderPass(vkhLogicalDevice, vkpassRenderPass, nullptr);
 	// destroy the image views
     DestroyImageViews();
     // destroy the swap chain
-    vkDestroySwapchainKHR(vkdevLogicalDevice, swcSwapChain, nullptr);
+    vkDestroySwapchainKHR(vkhLogicalDevice, vkhSwapChain, nullptr);
 }
 
 // Initialize the GfxAPIVulkan window.
@@ -440,7 +440,7 @@ void GfxAPIVulkan::SetupValidationErrorCallback() {
         // the function that creates the actual callback has to be obtained through vkGetInstanceProcAddr
         auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(vkhAPIInstance, "vkCreateDebugReportCallbackEXT");
         // create the callback, and throw an exception if creation fails
-        if (vkCreateDebugReportCallbackEXT == nullptr || vkCreateDebugReportCallbackEXT(vkhAPIInstance, &ciCallback, nullptr, &clbkValidation) != VK_SUCCESS) {
+        if (vkCreateDebugReportCallbackEXT == nullptr || vkCreateDebugReportCallbackEXT(vkhAPIInstance, &ciCallback, nullptr, &vkhValidationCallback) != VK_SUCCESS) {
             throw std::runtime_error("Failed to set up the validation layer debug callback");
         }
     }
@@ -459,7 +459,7 @@ void GfxAPIVulkan::DestroyValidationErrorCallback() {
     if (vkDestroyDebugReportCallbackEXT == nullptr) {
         throw std::runtime_error("Failed to destroy the validation callback");
     }
-    vkDestroyDebugReportCallbackEXT(vkhAPIInstance, clbkValidation, nullptr);
+    vkDestroyDebugReportCallbackEXT(vkhAPIInstance, vkhValidationCallback, nullptr);
 }
 
 
@@ -488,13 +488,13 @@ void GfxAPIVulkan::SelectPhysicalDevice() {
     // find the first physical device that fits the needs
     for (const VkPhysicalDevice &device : aPhysicalDevices) {
         if (IsDeviceSuitable(device)) {
-            vkdevPhysicalDevice = device;
+            vkhPhysicalDevice = device;
             break;
         }
     }
 
     // if no suitable physical device was found, throw
-    if (vkdevPhysicalDevice == VK_NULL_HANDLE) {
+    if (vkhPhysicalDevice == VK_NULL_HANDLE) {
         throw std::runtime_error("No suitable physical device found");
     }
 }
@@ -536,7 +536,7 @@ bool GfxAPIVulkan::IsDeviceSuitable(const VkPhysicalDevice &device) {
     // get swap chain feature information
     QuerySwapChainSupport(device);
     // if the surface doesn't support any formats or present modes, the device isn't suitable
-    if (aFormats.empty() || aPresentModes.empty()) {
+    if (afmtFormats.empty() || apmPresentModes.empty()) {
         return false;
     }
 
@@ -589,14 +589,14 @@ void GfxAPIVulkan::QuerySwapChainSupport(const VkPhysicalDevice &device) {
     // get the supported formats
     uint32_t ctFormats;
     vkGetPhysicalDeviceSurfaceFormatsKHR(device, sfcSurface, &ctFormats, nullptr);
-    aFormats.resize(ctFormats);
-    vkGetPhysicalDeviceSurfaceFormatsKHR(device, sfcSurface, &ctFormats, aFormats.data());
+    afmtFormats.resize(ctFormats);
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, sfcSurface, &ctFormats, afmtFormats.data());
 
     // get the supproted present modes
     uint32_t ctPresentModes;
     vkGetPhysicalDeviceSurfacePresentModesKHR(device, sfcSurface, &ctPresentModes, nullptr);
-    aPresentModes.resize(ctPresentModes);
-    vkGetPhysicalDeviceSurfacePresentModesKHR(device, sfcSurface, &ctPresentModes, aPresentModes.data());
+    apmPresentModes.resize(ctPresentModes);
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, sfcSurface, &ctPresentModes, apmPresentModes.data());
 }
 
 
@@ -622,12 +622,12 @@ void GfxAPIVulkan::CreateSwapChain() {
 
     // fill in the info collected earlier
     ciSwapChain.minImageCount = ctImages;
-    ciSwapChain.imageFormat = sfmtFormat.format;
-    ciSwapChain.imageColorSpace = sfmtFormat.colorSpace;
-    ciSwapChain.imageExtent = sexExtent;
+    ciSwapChain.imageFormat = fmtSurfaceFormat.format;
+    ciSwapChain.imageColorSpace = fmtSurfaceFormat.colorSpace;
+    ciSwapChain.imageExtent = exExtent;
 
     // specify the present mode and mark that clipped pixels (e.g. behind another window) are not important
-    ciSwapChain.presentMode = spmPresentMode;
+    ciSwapChain.presentMode = pmSurfacePresentMode;
     ciSwapChain.clipped = VK_TRUE;
 
     // image has only one layer (more is used for stereoscopic 3D)
@@ -668,14 +668,14 @@ void GfxAPIVulkan::CreateSwapChain() {
     ciSwapChain.oldSwapchain = VK_NULL_HANDLE;
 
     // create the swap chain
-    if (vkCreateSwapchainKHR(vkdevLogicalDevice, &ciSwapChain, nullptr, &swcSwapChain) != VK_SUCCESS) {
+    if (vkCreateSwapchainKHR(vkhLogicalDevice, &ciSwapChain, nullptr, &vkhSwapChain) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the swap chain");
     }
 
     // get the handles to swap chain images
-    vkGetSwapchainImagesKHR(vkdevLogicalDevice, swcSwapChain, &ctImages, nullptr);
-    aimgImages.resize(ctImages);
-    vkGetSwapchainImagesKHR(vkdevLogicalDevice, swcSwapChain, &ctImages, aimgImages.data());
+    vkGetSwapchainImagesKHR(vkhLogicalDevice, vkhSwapChain, &ctImages, nullptr);
+    avkhImages.resize(ctImages);
+    vkGetSwapchainImagesKHR(vkhLogicalDevice, vkhSwapChain, &ctImages, avkhImages.data());
 }
 
 
@@ -684,40 +684,40 @@ void GfxAPIVulkan::SelectSwapChainFormat() {
     // if the API returmed VK_FORMAT_UNDEFINED as the only supported format, that means that the surface 
     // doesn't care which format is use, so we pick the one that suits us best
     // NOTE: look into using VK_COLOR_SPACE_SCRGB_LINEAR_EXT instead
-    if (aFormats.size() == 1 && aFormats[0].format == VK_FORMAT_UNDEFINED) {
-        sfmtFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+    if (afmtFormats.size() == 1 && afmtFormats[0].format == VK_FORMAT_UNDEFINED) {
+        fmtSurfaceFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
         return;
     }
 
     // otherwise, try to find the desired format among the returned formats
-    for (const auto &format : aFormats) {
+    for (const auto &format : afmtFormats) {
         if (format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR && format.format == VK_FORMAT_R8G8B8A8_UNORM) {
-            sfmtFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+            fmtSurfaceFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
             return;
         }
     }
 
     // if that also failed, just use the first format available and hope for the best
     // NOTE: look into how to improve this
-    sfmtFormat = aFormats[0];
+    fmtSurfaceFormat = afmtFormats[0];
 }
 
 
 // Select the presentation mode to use.
 void GfxAPIVulkan::SelectSwapChainPresentMode() {
     // default to immediate presentation mode
-    spmPresentMode = VK_PRESENT_MODE_FIFO_KHR;
+    pmSurfacePresentMode = VK_PRESENT_MODE_FIFO_KHR;
 
     // go through all supported present modes
-    for (const auto &pmPresentMode : aPresentModes) {
+    for (const auto &pmPresentMode : apmPresentModes) {
         // if the mailbox mode is available, use it (for tripple buffering)
         if (pmPresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-            spmPresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
+            pmSurfacePresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
             return;
         // if the immediate mode is supported, use that (because some drivers don't support VK_PRESENT_MODE_FIFO_KHR correctly)
         // NOTE: look into this
         } else if (pmPresentMode == VK_PRESENT_MODE_IMMEDIATE_KHR) {
-            spmPresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+            pmSurfacePresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
             // do not return, in case the mailbox mode is listed after this one in the array
         }
     }
@@ -728,25 +728,25 @@ void GfxAPIVulkan::SelectSwapChainPresentMode() {
 void GfxAPIVulkan::SelectSwapChainExtent() {
     // uint32_max is set to width and height to signal matching to window dimensions
     if (capsSurface.currentExtent.width == std::numeric_limits<uint32_t>::max()) {
-        sexExtent = capsSurface.currentExtent;
+        exExtent = capsSurface.currentExtent;
         return;
     }
 
     // otherwise, try to fit the extent to the window size as much as possible
-    sexExtent.width = std::max(capsSurface.minImageExtent.width, std::min(capsSurface.maxImageExtent.width, _wndWindow->GetWidth()));
-    sexExtent.height = std::max(capsSurface.minImageExtent.height, std::min(capsSurface.maxImageExtent.height, _wndWindow->GetHeight()));
+    exExtent.width = std::max(capsSurface.minImageExtent.width, std::min(capsSurface.maxImageExtent.width, _wndWindow->GetWidth()));
+    exExtent.height = std::max(capsSurface.minImageExtent.height, std::min(capsSurface.maxImageExtent.height, _wndWindow->GetHeight()));
 }
 
 
 // Create the image views needed to acces swap chain images.
 void GfxAPIVulkan::CreateImageViews() {
     // resize the array to the correct number of views
-    aimgvImageViews.resize(aimgImages.size());
+    avkhImageViews.resize(avkhImages.size());
 
     // for each swap chain image, create the view
-    for (size_t iImage = 0; iImage < aimgImages.size(); ++iImage) {
+    for (size_t iImage = 0; iImage < avkhImages.size(); ++iImage) {
         // create the image view
-        aimgvImageViews[iImage] = CreateImageView(aimgImages[iImage], sfmtFormat.format, VK_IMAGE_ASPECT_COLOR_BIT);
+        avkhImageViews[iImage] = CreateImageView(avkhImages[iImage], fmtSurfaceFormat.format, VK_IMAGE_ASPECT_COLOR_BIT);
     }
 }
 
@@ -754,8 +754,8 @@ void GfxAPIVulkan::CreateImageViews() {
 // Destroy the image views.
 void GfxAPIVulkan::DestroyImageViews() {
     // for each swap chain image, create the view
-    for (VkImageView &imgvView : aimgvImageViews) {
-        vkDestroyImageView(vkdevLogicalDevice, imgvView, nullptr);
+    for (VkImageView &imgvView : avkhImageViews) {
+        vkDestroyImageView(vkhLogicalDevice, imgvView, nullptr);
     }
 }
 
@@ -813,14 +813,14 @@ void GfxAPIVulkan::CreateLogicalDevice() {
     }
 
     // create the logical device
-    if (vkCreateDevice(vkdevPhysicalDevice, &ciLogicalDeviceCreateInfo, nullptr, &vkdevLogicalDevice) != VK_SUCCESS) {
+    if (vkCreateDevice(vkhPhysicalDevice, &ciLogicalDeviceCreateInfo, nullptr, &vkhLogicalDevice) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the logical device");
     }
 
     // retreive the handle to the graphics queue
-    vkGetDeviceQueue(vkdevLogicalDevice, iGraphicsQueueFamily, 0, &qGraphicsQueue);
+    vkGetDeviceQueue(vkhLogicalDevice, iGraphicsQueueFamily, 0, &qGraphicsQueue);
     // retreive the handle to the presentation
-    vkGetDeviceQueue(vkdevLogicalDevice, iPresentationQueueFamily, 0, &qPresentationQueue);
+    vkGetDeviceQueue(vkhLogicalDevice, iPresentationQueueFamily, 0, &qPresentationQueue);
 }
 
 
@@ -838,7 +838,7 @@ VkShaderModule GfxAPIVulkan::CreateShaderModule(const std::string &strFilename) 
 
     // createh the shader module
     VkShaderModule modShaderModule;
-    if (vkCreateShaderModule(vkdevLogicalDevice, &ciShaderModule, nullptr, &modShaderModule) != VK_SUCCESS) {
+    if (vkCreateShaderModule(vkhLogicalDevice, &ciShaderModule, nullptr, &modShaderModule) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create a shader module");
     }
 
@@ -875,7 +875,7 @@ void GfxAPIVulkan::CreateRenderPass() {
 	// describe the attachment used for the color target
 	VkAttachmentDescription descColorAttachment = {};
 	// color format is the same as the one in the swap chain
-	descColorAttachment.format = sfmtFormat.format;
+	descColorAttachment.format = fmtSurfaceFormat.format;
 	// no multisampling, use one sample
 	descColorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
 	// the buffer should be cleared to a constant at the start
@@ -956,7 +956,7 @@ void GfxAPIVulkan::CreateRenderPass() {
 	ciRenderPass.pAttachments = ainfoAttachments.data();
 
 	// finally, create the render pass
-	if (vkCreateRenderPass(vkdevLogicalDevice, &ciRenderPass, nullptr, &vkpassRenderPass) != VK_SUCCESS) {
+	if (vkCreateRenderPass(vkhLogicalDevice, &ciRenderPass, nullptr, &vkpassRenderPass) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create the render pass");
 	}
 
@@ -1001,7 +1001,7 @@ void GfxAPIVulkan::CreateDescriptorSetLayout() {
     infoDescriptorSetLayout.pBindings = ainfoBindings.data();
 
     // create the layout
-    if (vkCreateDescriptorSetLayout(vkdevLogicalDevice, &infoDescriptorSetLayout, nullptr, &vkhDescriptorSetLayout) != VK_SUCCESS) {
+    if (vkCreateDescriptorSetLayout(vkhLogicalDevice, &infoDescriptorSetLayout, nullptr, &vkhDescriptorSetLayout) != VK_SUCCESS) {
         throw std::runtime_error("Unable to create the descriptor set layout");
     }
 }
@@ -1060,8 +1060,8 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	// viweport coves the full screen
 	vpViewport.x = 0.0f;
 	vpViewport.y = 0.0f;
-	vpViewport.width = (float) sexExtent.width;
-	vpViewport.height = (float) sexExtent.height;
+	vpViewport.width = (float) exExtent.width;
+	vpViewport.height = (float) exExtent.height;
 	// full range of depths
 	vpViewport.minDepth = 0.0f;
 	vpViewport.maxDepth = 1.0f;
@@ -1069,7 +1069,7 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	// set up the scissor to also cover the full screen
 	VkRect2D rectScissor = {};
 	rectScissor.offset = { 0, 0 };
-	rectScissor.extent = sexExtent;
+	rectScissor.extent = exExtent;
 
 	// describe the viewport state for the pipeline
 	VkPipelineViewportStateCreateInfo ciViewportState = {};
@@ -1160,7 +1160,7 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
 	ciPipelineLayout.pPushConstantRanges = 0;
 
 	// create the pipeline layout
-	if (vkCreatePipelineLayout(vkdevLogicalDevice, &ciPipelineLayout, nullptr, &vkplPipelineLayout) != VK_SUCCESS) {
+	if (vkCreatePipelineLayout(vkhLogicalDevice, &ciPipelineLayout, nullptr, &vkplPipelineLayout) != VK_SUCCESS) {
 		throw std::runtime_error("Failed to create the pipeline layout!");
 	}
 
@@ -1206,20 +1206,20 @@ void GfxAPIVulkan::CreateGraphicsPipeline() {
     ciGraphicsPipeline.basePipelineIndex = -1;
 
     // create the graphics pipeline
-    if (vkCreateGraphicsPipelines(vkdevLogicalDevice, VK_NULL_HANDLE, 1, &ciGraphicsPipeline, nullptr, &vkgpipePipeline) != VK_SUCCESS) {
+    if (vkCreateGraphicsPipelines(vkhLogicalDevice, VK_NULL_HANDLE, 1, &ciGraphicsPipeline, nullptr, &vkgpipePipeline) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the graphics pipeline");
     }
 
     // destroy shader modules - they are a part of the graphics pipeline
-    vkDestroyShaderModule(vkdevLogicalDevice, modFrag, nullptr);
-    vkDestroyShaderModule(vkdevLogicalDevice, modVert, nullptr);
+    vkDestroyShaderModule(vkhLogicalDevice, modFrag, nullptr);
+    vkDestroyShaderModule(vkhLogicalDevice, modVert, nullptr);
 }
 
 
 // Create the framebuffers.
 void GfxAPIVulkan::CreateFramebuffers() {
     // resize the frame buffer array to match the number of swap chain image views
-    atgtFramebuffers.resize(aimgvImageViews.size());
+    atgtFramebuffers.resize(avkhImageViews.size());
 
     // prepare the common part of the framebuffer description
     VkFramebufferCreateInfo ciFramebuffer = {};
@@ -1227,16 +1227,16 @@ void GfxAPIVulkan::CreateFramebuffers() {
     // bind the render pass
     ciFramebuffer.renderPass = vkpassRenderPass;
     // set the extends for the frame buffer
-    ciFramebuffer.width = sexExtent.width;
-    ciFramebuffer.height = sexExtent.height;
+    ciFramebuffer.width = exExtent.width;
+    ciFramebuffer.height = exExtent.height;
     // only one layer
     ciFramebuffer.layers = 1;
 
     // create a frame buffer for each image view
-    for (int iImageView = 0; iImageView < aimgvImageViews.size(); iImageView++) {
+    for (int iImageView = 0; iImageView < avkhImageViews.size(); iImageView++) {
         // create the image view attachment
         std::array<VkImageView, 2> avkhAttachments = {
-            aimgvImageViews[iImageView],
+            avkhImageViews[iImageView],
             vkhDeptImageView,
         };
 
@@ -1246,7 +1246,7 @@ void GfxAPIVulkan::CreateFramebuffers() {
         ciFramebuffer.attachmentCount = static_cast<uint32_t>(avkhAttachments.size());
 
         // create the framebuffer
-        if (vkCreateFramebuffer(vkdevLogicalDevice, &ciFramebuffer, nullptr, &atgtFramebuffers[iImageView]) != VK_SUCCESS) {
+        if (vkCreateFramebuffer(vkhLogicalDevice, &ciFramebuffer, nullptr, &atgtFramebuffers[iImageView]) != VK_SUCCESS) {
             throw std::runtime_error("Failed to create a framebuffer");
         }
     }
@@ -1255,7 +1255,7 @@ void GfxAPIVulkan::CreateFramebuffers() {
 // Destroy the framebuffers.
 void GfxAPIVulkan::DestroyFramebuffers() {
     for (VkFramebuffer tgtFramebuffer : atgtFramebuffers) {
-        vkDestroyFramebuffer(vkdevLogicalDevice, tgtFramebuffer, nullptr);
+        vkDestroyFramebuffer(vkhLogicalDevice, tgtFramebuffer, nullptr);
     }
 }
 
@@ -1271,7 +1271,7 @@ void GfxAPIVulkan::CreateCommandPool() {
     ciCommandPool.flags = 0;
 
     // create the command pool
-    if (vkCreateCommandPool(vkdevLogicalDevice, &ciCommandPool, nullptr, &vkhCommandPool) != VK_SUCCESS) {
+    if (vkCreateCommandPool(vkhLogicalDevice, &ciCommandPool, nullptr, &vkhCommandPool) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the command pool");
     }
 }
@@ -1292,7 +1292,7 @@ void GfxAPIVulkan::CreateCommandBuffers() {
     ciAllocateBuffers.commandBufferCount = (uint32_t) acbufCommandBuffers.size();
 
     // allocate the command buffers
-    if (vkAllocateCommandBuffers(vkdevLogicalDevice, &ciAllocateBuffers, acbufCommandBuffers.data()) != VK_SUCCESS) {
+    if (vkAllocateCommandBuffers(vkhLogicalDevice, &ciAllocateBuffers, acbufCommandBuffers.data()) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create allocate command buffers");
     }
 }
@@ -1320,7 +1320,7 @@ void GfxAPIVulkan::RecordCommandBuffers() {
     ciRenderPassBegin.renderPass = vkpassRenderPass;
     // set the render area
     ciRenderPassBegin.renderArea.offset = { 0,0 };
-    ciRenderPassBegin.renderArea.extent = sexExtent;
+    ciRenderPassBegin.renderArea.extent = exExtent;
     // set the clear color
     ciRenderPassBegin.clearValueCount = static_cast<uint32_t>(acolClearColors.size());
     ciRenderPassBegin.pClearValues = acolClearColors.data();
@@ -1370,16 +1370,16 @@ void GfxAPIVulkan::CreateSemaphores() {
     ciSemaphore.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
     // cerate the semaphores
-    if (vkCreateSemaphore(vkdevLogicalDevice, &ciSemaphore, nullptr, &syncImageAvailable) != VK_SUCCESS ||
-        vkCreateSemaphore(vkdevLogicalDevice, &ciSemaphore, nullptr, &syncRender) != VK_SUCCESS) {
+    if (vkCreateSemaphore(vkhLogicalDevice, &ciSemaphore, nullptr, &syncImageAvailable) != VK_SUCCESS ||
+        vkCreateSemaphore(vkhLogicalDevice, &ciSemaphore, nullptr, &syncRender) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create semaphores");
     }
 }
 
 // Delete the semaphores.
 void GfxAPIVulkan::DestroySemaphores() {
-    vkDestroySemaphore(vkdevLogicalDevice, syncImageAvailable, nullptr);
-    vkDestroySemaphore(vkdevLogicalDevice, syncRender, nullptr);
+    vkDestroySemaphore(vkhLogicalDevice, syncImageAvailable, nullptr);
+    vkDestroySemaphore(vkhLogicalDevice, syncRender, nullptr);
 }
 
 
@@ -1389,7 +1389,7 @@ void GfxAPIVulkan::CreateDepthResources() {
     VkFormat fmtDepth = FindDepthFormat();
 
     // create the depth image
-    CreateImage(sexExtent.width, sexExtent.height, fmtDepth, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkhDepthImageData, vkhDepthImageMemory);
+    CreateImage(exExtent.width, exExtent.height, fmtDepth, VK_IMAGE_TILING_OPTIMAL, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkhDepthImageData, vkhDepthImageMemory);
     // create the image view for depth
     vkhDeptImageView = CreateImageView(vkhDepthImageData, fmtDepth, VK_IMAGE_ASPECT_DEPTH_BIT);
 
@@ -1419,11 +1419,11 @@ void GfxAPIVulkan::CreateTextureImage() {
 
     // to copy the image values to GPU memory, it first needs to be mapped to CPU
     void *pMappedMemory;
-    vkMapMemory(vkdevLogicalDevice, vkhStagingMemory, 0, ctImageSize, 0, &pMappedMemory);
+    vkMapMemory(vkhLogicalDevice, vkhStagingMemory, 0, ctImageSize, 0, &pMappedMemory);
     // copy the buffer to mapped memory
     memcpy(pMappedMemory, imgRawData, ctImageSize);
     // unmap memory, let the GPU take over
-    vkUnmapMemory(vkdevLogicalDevice, vkhStagingMemory);
+    vkUnmapMemory(vkhLogicalDevice, vkhStagingMemory);
 
     // release texture memory
     stbi_image_free(imgRawData);
@@ -1436,9 +1436,9 @@ void GfxAPIVulkan::CreateTextureImage() {
     CoypBufferToImage(vkhStagingBuffer, vkhImageData, dimWidth, dimHeight);
 
     // destroy the staging buffer
-    vkDestroyBuffer(vkdevLogicalDevice, vkhStagingBuffer, nullptr);
+    vkDestroyBuffer(vkhLogicalDevice, vkhStagingBuffer, nullptr);
     // free buffer memory
-    vkFreeMemory(vkdevLogicalDevice, vkhStagingMemory, nullptr);
+    vkFreeMemory(vkhLogicalDevice, vkhStagingMemory, nullptr);
 }
 
 
@@ -1477,7 +1477,7 @@ void GfxAPIVulkan::CreateImageSampler() {
     infoSampler.maxLod = 0.0f;
 
     // create the sampler
-    if (vkCreateSampler(vkdevLogicalDevice, &infoSampler, nullptr, &vkhImageSampler) != VK_SUCCESS) {
+    if (vkCreateSampler(vkhLogicalDevice, &infoSampler, nullptr, &vkhImageSampler) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the texture sampler");
     }
 }
@@ -1496,7 +1496,7 @@ VkFormat GfxAPIVulkan::FindSupportedFormat(const std::vector<VkFormat> &afmtForm
     for (VkFormat fmtFormat : afmtFormats) {
         // get format properties
         VkFormatProperties propsFormat;
-        vkGetPhysicalDeviceFormatProperties(vkdevPhysicalDevice, fmtFormat, &propsFormat);
+        vkGetPhysicalDeviceFormatProperties(vkhPhysicalDevice, fmtFormat, &propsFormat);
 
         // if linear tiling was requested and the format supports the requested features for it, return that format
         if (imtTiling == VK_IMAGE_TILING_LINEAR && (propsFormat.linearTilingFeatures & flagFormatFeatures) == flagFormatFeatures) {
@@ -1538,7 +1538,7 @@ VkImageView GfxAPIVulkan::CreateImageView(VkImage vkhImage, VkFormat fmtFormat, 
 
     // create the image view
     VkImageView vkhView;
-    if (vkCreateImageView(vkdevLogicalDevice, &infoImageView, nullptr, &vkhView) != VK_SUCCESS) {
+    if (vkCreateImageView(vkhLogicalDevice, &infoImageView, nullptr, &vkhView) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create an image view");
     }
 
@@ -1576,13 +1576,13 @@ void GfxAPIVulkan::CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat f
     infoImage.flags = 0;
 
     // create the image
-    if (vkCreateImage(vkdevLogicalDevice, &infoImage, nullptr, &vkhImage) != VK_SUCCESS) {
+    if (vkCreateImage(vkhLogicalDevice, &infoImage, nullptr, &vkhImage) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the image");
     }
 
     // get the buffer's memory requirements
     VkMemoryRequirements propsMemoryRequirements = {};
-    vkGetImageMemoryRequirements(vkdevLogicalDevice, vkhImage, &propsMemoryRequirements);
+    vkGetImageMemoryRequirements(vkhLogicalDevice, vkhImage, &propsMemoryRequirements);
 
     // describe the memory allocation
     VkMemoryAllocateInfo infoImageMemory = {};
@@ -1593,12 +1593,12 @@ void GfxAPIVulkan::CreateImage(uint32_t dimWidth, uint32_t dimHeight, VkFormat f
     infoImageMemory.memoryTypeIndex = FindMemoryType(propsMemoryRequirements.memoryTypeBits, flagMemoryProperties);
 
     // allocate the memory for the image
-    if (vkAllocateMemory(vkdevLogicalDevice, &infoImageMemory, nullptr, &vkhMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(vkhLogicalDevice, &infoImageMemory, nullptr, &vkhMemory) != VK_SUCCESS) {
         throw std::runtime_error("Unable to allocate memory for the image");
     }
 
     // after a successfull allocation, bind the memory to the image
-    vkBindImageMemory(vkdevLogicalDevice, vkhImage, vkhMemory, 0);
+    vkBindImageMemory(vkhLogicalDevice, vkhImage, vkhMemory, 0);
 }
 
 
@@ -1768,11 +1768,11 @@ void GfxAPIVulkan::CreateVertexBuffers() {
     
     // to copy the vertex buffer values to GPU memory, it first needs to be mapped to CPU
     void *pMappedMemory;
-    vkMapMemory(vkdevLogicalDevice, vkhStagingMemory, 0, ctBufferSize, 0, &pMappedMemory);
+    vkMapMemory(vkhLogicalDevice, vkhStagingMemory, 0, ctBufferSize, 0, &pMappedMemory);
     // copy the buffer to mapped memory
     memcpy(pMappedMemory, avVertices.data(), ctBufferSize);
     // unmap memory, let the GPU take over
-    vkUnmapMemory(vkdevLogicalDevice, vkhStagingMemory);
+    vkUnmapMemory(vkhLogicalDevice, vkhStagingMemory);
 
     // create the vertex buffer - it is located in device memory and is a memory transfer destination
     CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkhVertexBuffer, vkhVertexBufferMemory);
@@ -1781,9 +1781,9 @@ void GfxAPIVulkan::CreateVertexBuffers() {
     CopyBuffer(vkhStagingBuffer, vkhVertexBuffer, ctBufferSize);
 
     // destroy the staging buffer
-    vkDestroyBuffer(vkdevLogicalDevice, vkhStagingBuffer, nullptr);
+    vkDestroyBuffer(vkhLogicalDevice, vkhStagingBuffer, nullptr);
     // free buffer memory
-    vkFreeMemory(vkdevLogicalDevice, vkhStagingMemory, nullptr);
+    vkFreeMemory(vkhLogicalDevice, vkhStagingMemory, nullptr);
 }
 
 
@@ -1799,11 +1799,11 @@ void GfxAPIVulkan::CreateIndexBuffers() {
 
     // to copy the index buffer values to GPU memory, it first needs to be mapped to CPU
     void *pMappedMemory;
-    vkMapMemory(vkdevLogicalDevice, vkhStagingMemory, 0, ctBufferSize, 0, &pMappedMemory);
+    vkMapMemory(vkhLogicalDevice, vkhStagingMemory, 0, ctBufferSize, 0, &pMappedMemory);
     // copy the buffer to mapped memory
     memcpy(pMappedMemory, aiIndices.data(), ctBufferSize);
     // unmap memory, let the GPU take over
-    vkUnmapMemory(vkdevLogicalDevice, vkhStagingMemory);
+    vkUnmapMemory(vkhLogicalDevice, vkhStagingMemory);
 
     // create the index buffer - it is located in device memory and is a memory transfer destination
     CreateBuffer(ctBufferSize, VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, vkhIndexBuffer, vkhIndexBufferMemory);
@@ -1812,9 +1812,9 @@ void GfxAPIVulkan::CreateIndexBuffers() {
     CopyBuffer(vkhStagingBuffer, vkhIndexBuffer, ctBufferSize);
 
     // destroy the staging buffer
-    vkDestroyBuffer(vkdevLogicalDevice, vkhStagingBuffer, nullptr);
+    vkDestroyBuffer(vkhLogicalDevice, vkhStagingBuffer, nullptr);
     // free buffer memory
-    vkFreeMemory(vkdevLogicalDevice, vkhStagingMemory, nullptr);
+    vkFreeMemory(vkhLogicalDevice, vkhStagingMemory, nullptr);
 }
 
 // Create uniform buffer.
@@ -1849,7 +1849,7 @@ void GfxAPIVulkan::CreateDescriptorPool() {
     infoDescriptorPool.maxSets = 1;
 
     // create the descriptor pool
-    if (vkCreateDescriptorPool(vkdevLogicalDevice, &infoDescriptorPool, nullptr, &vkhDescriptorPool) != VK_SUCCESS) {
+    if (vkCreateDescriptorPool(vkhLogicalDevice, &infoDescriptorPool, nullptr, &vkhDescriptorPool) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the descriptor pool");
     }
 }
@@ -1870,7 +1870,7 @@ void GfxAPIVulkan::CreateDescriptorSet() {
     infoDescriptorSetAllocation.descriptorPool = vkhDescriptorPool;
 
     // create the descriptor set
-    if (vkAllocateDescriptorSets(vkdevLogicalDevice, &infoDescriptorSetAllocation, &vkhDescriptorSet) != VK_SUCCESS) {
+    if (vkAllocateDescriptorSets(vkhLogicalDevice, &infoDescriptorSetAllocation, &vkhDescriptorSet) != VK_SUCCESS) {
         throw std::runtime_error("Unable to allocate the descriptor set");
     }
 
@@ -1925,7 +1925,7 @@ void GfxAPIVulkan::CreateDescriptorSet() {
     ainfoUpdateDescriptorSets[1].pImageInfo = &infoImage;
 
     // apply updates to the descriptor
-    vkUpdateDescriptorSets(vkdevLogicalDevice, static_cast<uint32_t>(ainfoUpdateDescriptorSets.size()), ainfoUpdateDescriptorSets.data(), 0, nullptr);
+    vkUpdateDescriptorSets(vkhLogicalDevice, static_cast<uint32_t>(ainfoUpdateDescriptorSets.size()), ainfoUpdateDescriptorSets.data(), 0, nullptr);
 }
 
 
@@ -1942,13 +1942,13 @@ void GfxAPIVulkan::CreateBuffer(VkDeviceSize ctSize, VkBufferUsageFlags flgBuffe
     infoBuffer.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
     // create the vertex buffer
-    if (vkCreateBuffer(vkdevLogicalDevice, &infoBuffer, nullptr, &vkhBuffer) != VK_SUCCESS) {
+    if (vkCreateBuffer(vkhLogicalDevice, &infoBuffer, nullptr, &vkhBuffer) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the vertex buffer");
     }
 
     // get the buffer's memory requirements
     VkMemoryRequirements propsMemoryRequirements = {};
-    vkGetBufferMemoryRequirements(vkdevLogicalDevice, vkhBuffer, &propsMemoryRequirements);
+    vkGetBufferMemoryRequirements(vkhLogicalDevice, vkhBuffer, &propsMemoryRequirements);
 
     // describe the memory allocation
     VkMemoryAllocateInfo infoBufferMemory = {};
@@ -1959,12 +1959,12 @@ void GfxAPIVulkan::CreateBuffer(VkDeviceSize ctSize, VkBufferUsageFlags flgBuffe
     infoBufferMemory.memoryTypeIndex = FindMemoryType(propsMemoryRequirements.memoryTypeBits, flgMemoryProperties);
 
     // allocate the memory for the buffer
-    if (vkAllocateMemory(vkdevLogicalDevice, &infoBufferMemory, nullptr, &vkhMemory) != VK_SUCCESS) {
+    if (vkAllocateMemory(vkhLogicalDevice, &infoBufferMemory, nullptr, &vkhMemory) != VK_SUCCESS) {
         throw std::runtime_error("Unable to allocate memory for the vertex buffer");
     }
 
     // after a successfull allocation, bind the memory to the buffer
-    vkBindBufferMemory(vkdevLogicalDevice, vkhBuffer, vkhMemory, 0);
+    vkBindBufferMemory(vkhLogicalDevice, vkhBuffer, vkhMemory, 0);
 }
 
 
@@ -2001,7 +2001,7 @@ VkCommandBuffer GfxAPIVulkan::BeginOneTimeCommand() {
 
     // allocate the buffer
     VkCommandBuffer vkhCommandBuffer = {};
-    vkAllocateCommandBuffers(vkdevLogicalDevice, &infoCommandBuffer, &vkhCommandBuffer);
+    vkAllocateCommandBuffers(vkhLogicalDevice, &infoCommandBuffer, &vkhCommandBuffer);
 
     // start recording the command buffer
     VkCommandBufferBeginInfo infoBegin = {};
@@ -2034,7 +2034,7 @@ void GfxAPIVulkan::EndOneTimeCommand(VkCommandBuffer vkhCommandBuffer) {
     vkQueueWaitIdle(qGraphicsQueue);
 
     // clean up the command buffer
-    vkFreeCommandBuffers(vkdevLogicalDevice, vkhCommandPool, 1, &vkhCommandBuffer);
+    vkFreeCommandBuffers(vkhLogicalDevice, vkhCommandPool, 1, &vkhCommandBuffer);
 }
 
 
@@ -2043,7 +2043,7 @@ void GfxAPIVulkan::EndOneTimeCommand(VkCommandBuffer vkhCommandBuffer) {
 uint32_t GfxAPIVulkan::FindMemoryType(uint32_t flgTypeFilter, VkMemoryPropertyFlags flgProperties) {
     // get all memory types for the physical device
     VkPhysicalDeviceMemoryProperties propsDeviceMemoryProperties;
-    vkGetPhysicalDeviceMemoryProperties(vkdevPhysicalDevice, &propsDeviceMemoryProperties);
+    vkGetPhysicalDeviceMemoryProperties(vkhPhysicalDevice, &propsDeviceMemoryProperties);
 
     // go through all memory types an find the suitable one
     for (uint32_t iMemoryType = 0; iMemoryType < propsDeviceMemoryProperties.memoryTypeCount; iMemoryType++) {
@@ -2083,17 +2083,17 @@ void GfxAPIVulkan::UpdateUniformBuffer() {
     // calculate the view transform
     uboUniforms.tView = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
     // calculate the prijection transform
-    uboUniforms.tProjection = glm::perspective(glm::radians(45.0f), sexExtent.width / (float) sexExtent.height, 0.1f, 10.0f);
+    uboUniforms.tProjection = glm::perspective(glm::radians(45.0f), exExtent.width / (float) exExtent.height, 0.1f, 10.0f);
     // correct for the difference between OpenGL and Vulkan regarding the direction of the Y clip coordinate axis
     uboUniforms.tProjection[1][1] *= -1;
 
     // to copy the uniform buffer values to GPU memory, it first needs to be mapped to CPU
     void *pMappedMemory;
-    vkMapMemory(vkdevLogicalDevice, vkhUniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &pMappedMemory);
+    vkMapMemory(vkhLogicalDevice, vkhUniformBufferMemory, 0, sizeof(UniformBufferObject), 0, &pMappedMemory);
     // copy the buffer to mapped memory
     memcpy(pMappedMemory, &uboUniforms, sizeof(UniformBufferObject));
     // unmap memory, let the GPU take over
-    vkUnmapMemory(vkdevLogicalDevice, vkhUniformBufferMemory);
+    vkUnmapMemory(vkhLogicalDevice, vkhUniformBufferMemory);
 }
 
 // Render a frame.
@@ -2105,7 +2105,7 @@ void GfxAPIVulkan::Render() {
     // setting max uint64 as the timeout (in nanoseconds) disables the timeout
     // when the image becomes available the syncImageAvailable semaphore will be signaled
     uint32_t iImage;
-    VkResult statusResult  = vkAcquireNextImageKHR(vkdevLogicalDevice, swcSwapChain, std::numeric_limits<uint64_t>::max(), syncImageAvailable, VK_NULL_HANDLE, &iImage);
+    VkResult statusResult  = vkAcquireNextImageKHR(vkhLogicalDevice, vkhSwapChain, std::numeric_limits<uint64_t>::max(), syncImageAvailable, VK_NULL_HANDLE, &iImage);
 
     // if acquiring the image failed because the swap chain has become incompatible with the surface
     if (statusResult == VK_ERROR_OUT_OF_DATE_KHR) {
@@ -2154,7 +2154,7 @@ void GfxAPIVulkan::Render() {
     infPresent.pWaitSemaphores = asyncSignal;
 
     // what images to present to which swap chains
-    VkSwapchainKHR aswcChains[] = { swcSwapChain };
+    VkSwapchainKHR aswcChains[] = { vkhSwapChain };
     infPresent.swapchainCount = 1;
     infPresent.pSwapchains = aswcChains;
     infPresent.pImageIndices = &iImage;
@@ -2178,5 +2178,5 @@ void GfxAPIVulkan::Render() {
 
     // wait for the device to finish rendering
     // not needed in a proper application where there are other things to do while the grahics card and thread to their thing
-    vkDeviceWaitIdle(vkdevLogicalDevice);
+    vkDeviceWaitIdle(vkhLogicalDevice);
 }
