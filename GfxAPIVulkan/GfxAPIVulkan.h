@@ -81,27 +81,7 @@ public:
     static void GfxAPIVulkan::OnWindowResizedCallback(GLFWwindow* window, int width, int height);
 
 private:
-    GfxAPIVulkan() :vkdevPhysicalDevice(VK_NULL_HANDLE), 
-                    vkdevLogicalDevice(VK_NULL_HANDLE), 
-                    iGraphicsQueueFamily(-1),
-                    qGraphicsQueue(VK_NULL_HANDLE),
-                    iPresentationQueueFamily(-1),
-                    qPresentationQueue(VK_NULL_HANDLE),
-                    swcSwapChain(VK_NULL_HANDLE),
-                    vkpassRenderPass(VK_NULL_HANDLE),
-                    vkhDescriptorSetLayout(VK_NULL_HANDLE),
-                    vkhDescriptorPool(VK_NULL_HANDLE),
-                    vkplPipelineLayout(VK_NULL_HANDLE),
-                    vkgpipePipeline(VK_NULL_HANDLE),
-                    vkhVertexBuffer(VK_NULL_HANDLE),
-                    vkhVertexBufferMemory(VK_NULL_HANDLE),
-                    vkhUniformBuffer(VK_NULL_HANDLE),
-                    vkhUniformBufferMemory(VK_NULL_HANDLE),
-                    vkhImageData(VK_NULL_HANDLE),
-                    vkhImageMemory(VK_NULL_HANDLE),
-                    vkhImageView(VK_NULL_HANDLE),
-                    vkhImageSampler(VK_NULL_HANDLE)
-    {};
+    GfxAPIVulkan() {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
 
