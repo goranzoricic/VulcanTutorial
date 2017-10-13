@@ -685,14 +685,14 @@ void GfxAPIVulkan::SelectSwapChainFormat() {
     // doesn't care which format is use, so we pick the one that suits us best
     // NOTE: look into using VK_COLOR_SPACE_SCRGB_LINEAR_EXT instead
     if (aFormats.size() == 1 && aFormats[0].format == VK_FORMAT_UNDEFINED) {
-        sfmtFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
+        sfmtFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
         return;
     }
 
     // otherwise, try to find the desired format among the returned formats
     for (const auto &format : aFormats) {
-        if (format.colorSpace == VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT && format.format == VK_FORMAT_R8G8B8A8_UNORM) {
-            sfmtFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SCRGB_NONLINEAR_EXT };
+        if (format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR && format.format == VK_FORMAT_R8G8B8A8_UNORM) {
+            sfmtFormat = { VK_FORMAT_R8G8B8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
             return;
         }
     }
