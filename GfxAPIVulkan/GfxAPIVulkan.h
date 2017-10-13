@@ -249,7 +249,7 @@ private:
 
 private:
     // Handle to the vulkan instance.
-    VkInstance vkiInstance;
+    VkInstance vkhAPIInstance;
 
     // Handle to the window surface that the render buffers will be presented to.
     VkSurfaceKHR sfcSurface;

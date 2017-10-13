@@ -154,9 +154,9 @@ bool GfxAPIVulkan::Destroy() {
     // remove the validation callback
     DestroyValidationErrorCallback();
     // destroy the window surface
-    vkDestroySurfaceKHR(vkiInstance, sfcSurface, nullptr);
+    vkDestroySurfaceKHR(vkhAPIInstance, sfcSurface, nullptr);
     // destroy the vulkan instance
-    vkDestroyInstance(vkiInstance, nullptr);
+    vkDestroyInstance(vkhAPIInstance, nullptr);
     // close the window
     _wndWindow->Close();
     // shut down GLFW
@@ -288,7 +288,7 @@ void GfxAPIVulkan::CreateInstance() {
     }
 
     // create the vulkan instance
-    VkResult result = vkCreateInstance(&ciInstance, nullptr, &vkiInstance);
+    VkResult result = vkCreateInstance(&ciInstance, nullptr, &vkhAPIInstance);
 
     // if the instance wasn't created successfully, throw
     if (result != VK_SUCCESS) {
@@ -438,9 +438,9 @@ void GfxAPIVulkan::SetupValidationErrorCallback() {
 
     if (Options::Get().ShouldUseValidationLayers()) {
         // the function that creates the actual callback has to be obtained through vkGetInstanceProcAddr
-        auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(vkiInstance, "vkCreateDebugReportCallbackEXT");
+        auto vkCreateDebugReportCallbackEXT = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(vkhAPIInstance, "vkCreateDebugReportCallbackEXT");
         // create the callback, and throw an exception if creation fails
-        if (vkCreateDebugReportCallbackEXT == nullptr || vkCreateDebugReportCallbackEXT(vkiInstance, &ciCallback, nullptr, &clbkValidation) != VK_SUCCESS) {
+        if (vkCreateDebugReportCallbackEXT == nullptr || vkCreateDebugReportCallbackEXT(vkhAPIInstance, &ciCallback, nullptr, &clbkValidation) != VK_SUCCESS) {
             throw std::runtime_error("Failed to set up the validation layer debug callback");
         }
     }
@@ -454,18 +454,18 @@ void GfxAPIVulkan::DestroyValidationErrorCallback() {
         return;
     }
     // get the pointer to the destroy function
-    auto vkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(vkiInstance, "vkDestroyDebugReportCallbackEXT");
+    auto vkDestroyDebugReportCallbackEXT = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(vkhAPIInstance, "vkDestroyDebugReportCallbackEXT");
     // if failed getting the function, throw an exception
     if (vkDestroyDebugReportCallbackEXT == nullptr) {
         throw std::runtime_error("Failed to destroy the validation callback");
     }
-    vkDestroyDebugReportCallbackEXT(vkiInstance, clbkValidation, nullptr);
+    vkDestroyDebugReportCallbackEXT(vkhAPIInstance, clbkValidation, nullptr);
 }
 
 
 // Create the surface to present render buffers to.
 void GfxAPIVulkan::CreateSurface() {
-    if (glfwCreateWindowSurface(vkiInstance, _wndWindow->GetHandle(), nullptr, &sfcSurface) != VK_SUCCESS) {
+    if (glfwCreateWindowSurface(vkhAPIInstance, _wndWindow->GetHandle(), nullptr, &sfcSurface) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create the window surface");
     }
 }
@@ -474,7 +474,7 @@ void GfxAPIVulkan::CreateSurface() {
 void GfxAPIVulkan::SelectPhysicalDevice() {
     // enumerate the available physical devices
     uint32_t ctDevices = 0;
-    vkEnumeratePhysicalDevices(vkiInstance, &ctDevices, nullptr);
+    vkEnumeratePhysicalDevices(vkhAPIInstance, &ctDevices, nullptr);
 
     // if there are no physical devices, we can't render, so throw
     if (ctDevices == 0) {
@@ -483,7 +483,7 @@ void GfxAPIVulkan::SelectPhysicalDevice() {
 
     // get info for all physical devices
     std::vector<VkPhysicalDevice> aPhysicalDevices(ctDevices);
-    vkEnumeratePhysicalDevices(vkiInstance, &ctDevices, aPhysicalDevices.data());
+    vkEnumeratePhysicalDevices(vkhAPIInstance, &ctDevices, aPhysicalDevices.data());
 
     // find the first physical device that fits the needs
     for (const VkPhysicalDevice &device : aPhysicalDevices) {
@@ -1402,7 +1402,7 @@ void GfxAPIVulkan::CreateDepthResources() {
 void GfxAPIVulkan::CreateTextureImage() {
     // load the image ising the stb library
     int dimWidth, dimHeight, ctChannels;
-    stbi_uc *imgRawData = stbi_load("d:/Work/VulcanTutorial/Shaders/chalet.jpg", &dimWidth, &dimHeight, &ctChannels, STBI_rgb_alpha);
+    stbi_uc *imgRawData = stbi_load("d:/Work/VulcanTutorial/Shaders/uv_checker.png", &dimWidth, &dimHeight, &ctChannels, STBI_rgb_alpha);
 
     // if the image failed to load, throw an exception
     if (!imgRawData) {
@@ -1724,7 +1724,7 @@ void GfxAPIVulkan::LoadModel() {
     std::string strError;
 
     // load the model from the object file
-    if (!tinyobj::LoadObj(&vatrVertexAttributes, &ameshMeshes, &amatMaterials, &strError, "d:/Work/VulcanTutorial/Shaders/chalet.obj")) {
+    if (!tinyobj::LoadObj(&vatrVertexAttributes, &ameshMeshes, &amatMaterials, &strError, "d:/Work/VulcanTutorial/Shaders/sphere.obj")) {
         throw std::runtime_error("Failed to load the model:  " + strError);
     }
 
