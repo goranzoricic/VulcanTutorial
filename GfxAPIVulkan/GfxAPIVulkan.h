@@ -81,27 +81,7 @@ public:
     static void GfxAPIVulkan::OnWindowResizedCallback(GLFWwindow* window, int width, int height);
 
 private:
-    GfxAPIVulkan() :vkdevPhysicalDevice(VK_NULL_HANDLE), 
-                    vkdevLogicalDevice(VK_NULL_HANDLE), 
-                    iGraphicsQueueFamily(-1),
-                    qGraphicsQueue(VK_NULL_HANDLE),
-                    iPresentationQueueFamily(-1),
-                    qPresentationQueue(VK_NULL_HANDLE),
-                    swcSwapChain(VK_NULL_HANDLE),
-                    vkpassRenderPass(VK_NULL_HANDLE),
-                    vkhDescriptorSetLayout(VK_NULL_HANDLE),
-                    vkhDescriptorPool(VK_NULL_HANDLE),
-                    vkplPipelineLayout(VK_NULL_HANDLE),
-                    vkgpipePipeline(VK_NULL_HANDLE),
-                    vkhVertexBuffer(VK_NULL_HANDLE),
-                    vkhVertexBufferMemory(VK_NULL_HANDLE),
-                    vkhUniformBuffer(VK_NULL_HANDLE),
-                    vkhUniformBufferMemory(VK_NULL_HANDLE),
-                    vkhImageData(VK_NULL_HANDLE),
-                    vkhImageMemory(VK_NULL_HANDLE),
-                    vkhImageView(VK_NULL_HANDLE),
-                    vkhImageSampler(VK_NULL_HANDLE)
-    {};
+    GfxAPIVulkan() {};
     ~GfxAPIVulkan() {};
     friend class GfxAPI;
 
@@ -269,7 +249,7 @@ private:
 
 private:
     // Handle to the vulkan instance.
-    VkInstance vkiInstance;
+    VkInstance vkhAPIInstance;
 
     // Handle to the window surface that the render buffers will be presented to.
     VkSurfaceKHR sfcSurface;
@@ -277,63 +257,63 @@ private:
     VkSurfaceCapabilitiesKHR capsSurface;
 
     // Swap chain to use for rendering.
-    VkSwapchainKHR swcSwapChain;
+    VkSwapchainKHR vkhSwapChain;
     // Drawing formats that the device support.
-    std::vector<VkSurfaceFormatKHR> aFormats;
+    std::vector<VkSurfaceFormatKHR> afmtFormats;
     // Present modes supported by the surface.
-    std::vector<VkPresentModeKHR> aPresentModes;
+    std::vector<VkPresentModeKHR> apmPresentModes;
     // Handles to swap chain images.
-    std::vector<VkImage> aimgImages;
+    std::vector<VkImage> avkhImages;
     // Views to swap chain images.
-    std::vector<VkImageView> aimgvImageViews;
+    std::vector<VkImageView> avkhImageViews;
 
     // Swap chain format selected for use.
-    VkSurfaceFormatKHR sfmtFormat;
+    VkSurfaceFormatKHR fmtSurfaceFormat;
     // Present mode selected for use
-    VkPresentModeKHR spmPresentMode;
+    VkPresentModeKHR pmSurfacePresentMode;
     // Extent (resolution) selected for the swap chain.
-    VkExtent2D sexExtent;
+    VkExtent2D exExtent;
 
     // Handle to the debug callback.
-    VkDebugReportCallbackEXT clbkValidation;
+    VkDebugReportCallbackEXT vkhValidationCallback;
     // Physical device (graphics card) used.
-    VkPhysicalDevice vkdevPhysicalDevice;
+    VkPhysicalDevice vkhPhysicalDevice;
     // Logical device used.
-    VkDevice vkdevLogicalDevice;
+    VkDevice vkhLogicalDevice;
 
     // Index of a queue family that supports graphics commands.
     int iGraphicsQueueFamily;
     // Handle to the queue to submit graphics commands to.
-    VkQueue qGraphicsQueue;
+    VkQueue vkhGraphicsQueue;
 
     // Index of a graphics family with presentation support.
     int iPresentationQueueFamily;
     // Handle to the queue to use for presentation.
-    VkQueue qPresentationQueue;
+    VkQueue vkhPresentationQueue;
 
 	// Render pass applied to render objects.
-	VkRenderPass vkpassRenderPass;
+	VkRenderPass vkhRenderPass;
 	
     // Descriptor set layout for uniform buffers.
     VkDescriptorSetLayout vkhDescriptorSetLayout;
 
     // Layout of the graphics pipeline.
-	VkPipelineLayout vkplPipelineLayout;
+	VkPipelineLayout vkhPipelineLayout;
     // Graphics pipeline.
-    VkPipeline vkgpipePipeline;
+    VkPipeline vkhPipeline;
 
     // Framebuffers used to draw.
-    std::vector<VkFramebuffer> atgtFramebuffers;
+    std::vector<VkFramebuffer> avkhFramebuffers;
 
     // Command pool that will hold command buffers.
     VkCommandPool vkhCommandPool;
     // Command buffers to post the commands to.
-    std::vector<VkCommandBuffer> acbufCommandBuffers;
+    std::vector<VkCommandBuffer> avkhCommandBuffers;
 
     // Semephore used to sync target buffers.
-    VkSemaphore syncImageAvailable;
+    VkSemaphore vkhImageAvailableSemaphore;
     // Semaphore used to sync presentation.
-    VkSemaphore syncRender;
+    VkSemaphore vkhRenderSemaphore;
 
     // Vertex buffer holding the shape's vertices.
     VkBuffer vkhVertexBuffer;
